@@ -722,13 +722,15 @@ BOOT:
  newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
 }
 
+#if SU_THREADSAFE
+
 void
 CLONE(...)
 PROTOTYPE: DISABLE
 CODE:
  PERL_UNUSED_VAR(items);
-#if SU_THREADSAFE
  MY_CXT_CLONE;
+
 #endif /* SU_THREADSAFE */
 
 SV *
