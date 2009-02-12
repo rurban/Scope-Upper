@@ -641,13 +641,15 @@ STATIC void su_unwind(pTHX_ void *ud_) {
  STMT_START {                  \
   if (items > A) {             \
    SV *csv = ST(B);            \
-   if (SvOK(csv))              \
-    cxix = SvIV(csv);          \
+   if (!SvOK(csv))             \
+    goto default_cx;           \
+   cxix = SvIV(csv);           \
    if (cxix < 0)               \
     cxix = 0;                  \
    else if (cxix > cxstack_ix) \
     cxix = cxstack_ix;         \
   } else {                     \
+default_cx:                    \
    cxix = cxstack_ix;          \
    if (PL_DBsub)               \
     SU_SKIP_DB(cxix);          \
@@ -656,14 +658,15 @@ STATIC void su_unwind(pTHX_ void *ud_) {
 
 #define SU_GET_LEVEL(A, B) \
  STMT_START {              \
+  level = 0;               \
   if (items > 0) {         \
    SV *lsv = ST(B);        \
-   if (SvOK(lsv))          \
+   if (SvOK(lsv)) {        \
     level = SvIV(lsv);     \
-   if (level < 0)          \
-    level = 0;             \
-  } else                   \
-   level = 0;              \
+    if (level < 0)         \
+     level = 0;            \
+   }                       \
+  }                        \
  } STMT_END
 
 XS(XS_Scope__Upper_unwind); /* prototype to pass -Wmissing-prototypes */
