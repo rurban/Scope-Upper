@@ -351,11 +351,9 @@ STATIC void su_localize(pTHX_ void *ud_) {
 
  if (SvTYPE(sv) >= SVt_PVGV) {
   gv = (GV *) sv;
-  if (!val) {               /* local *x; */
+  if (!val || !SvROK(val)) { /* local *x; or local *x = $val; */
    t = SVt_PVGV;
-  } else if (!SvROK(val)) { /* local *x = $val; */
-   goto assign;
-  } else {                  /* local *x = \$val; */
+  } else {                   /* local *x = \$val; */
    t = SvTYPE(SvRV(val));
    deref = 1;
   }
@@ -430,7 +428,6 @@ STATIC void su_localize(pTHX_ void *ud_) {
                                      ud, PL_savestack_ix,
                                          PL_scopestack[PL_scopestack_ix]));
 
-assign:
  if (val)
   SvSetMagicSV((SV *) gv, val);
 

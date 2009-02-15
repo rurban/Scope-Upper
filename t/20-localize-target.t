@@ -32,14 +32,17 @@ sub _t { shift->{t} }
  is $x, undef, 'localize *x, obj => HERE [end]';
 }
 
+our $y;
+
 {
- local $x = 2;
+ local $x = 1;
+ local $y = 2;
  {
-  local $x = 3;
-  localize *x, 1 => HERE;
-  is $x, undef, 'localize *x, 1 => HERE [ok]';
+  local $y = 3;
+  localize *x, 'y' => HERE;
+  is $x, 3, "localize *x, 'y' => HERE [ok]";
  }
- is $x, $] < 5.008009 ? undef : 2, 'localize *x, 1 => HERE [end]';
+ is $x, 1, "localize *x, 'y' => HERE [end]";
 }
 undef *x;
 
