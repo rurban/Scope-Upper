@@ -79,20 +79,32 @@ BEGIN {
 
 =head1 DESCRIPTION
 
-This module lets you defer actions that will take place when the control flow returns into an upper scope.
-Currently, you can hook an upper scope end, or localize variables, array/hash values or deletions of elements in higher contexts.
-You can also return to an upper level and know which context was in use then.
+This module lets you defer actions I<at run-time> that will take place when the control flow returns into an upper scope.
+Currently, you can:
+
+=over 4
+
+=item *
+
+hook an upper scope end with L</reap> ;
+
+=item *
+
+localize variables, array/hash values or deletions of elements in higher contexts with respectively L</localize>, L</localize_elem> and L</localize_delete> ;
+
+=item *
+
+return values immediately to an upper level with L</unwind>, and know which context was in use then with L</want_at>.
+
+=back
 
 =head1 FUNCTIONS
 
 In all those functions, C<$context> refers to the target scope.
 
-You have to use one or a combination of L</WORDS> to build the C<$context> to pass to these functions.
+You have to use one or a combination of L</WORDS> to build the C<$context> passed to these functions.
 This is needed in order to ensure that the module still works when your program is ran in the debugger.
-Don't try to use a raw value or things will get messy.
-
-The only thing you can assume is that it is an I<absolute> indicator of the frame.
-This means that you can safely store it at some point and use it when needed, and it will still denote the original scope.
+The only thing you can assume is that it is an I<absolute> indicator of the frame, which means that you can safely store it at some point and use it when needed, and it will still denote the original scope.
 
 =cut
 
@@ -278,11 +290,12 @@ Consider those examples:
 
 The first case is "solved" by moving the C<local> before the C<reap>, and the second by using L</localize> instead of L</reap>.
 
-L</reap>, L</localize> and L</localize_elem> effects can't cross C<BEGIN> blocks, hence calling those functions in C<import> is deemed to be useless.
+The effects of L</reap>, L</localize> and L</localize_elem> can't cross C<BEGIN> blocks, hence calling those functions in C<import> is deemed to be useless.
 This is an hopeless case because C<BEGIN> blocks are executed once while localizing constructs should do their job at each run.
+However, it's possible to hook the end of the current scope compilation with L<B::Hooks::EndOfScope>.
 
 Some rare oddities may still happen when running inside the debugger.
-It may help to use a perl higher than 5.8.9 or 5.10.0, as they contain some context fixes.
+It may help to use a perl higher than 5.8.9 or 5.10.0, as they contain some context-related fixes.
 
 =head1 DEPENDENCIES
 
