@@ -250,6 +250,64 @@ The C<$level>-th upper context, regardless of its type.
 The context of the C<$level>-th upper subroutine/eval/format.
 It kind of corresponds to the context represented by C<caller $level>, but while e.g. C<caller 0> refers to the caller context, C<CALLER 0> will refer to the top scope in the current context.
 
+=head2 Examples
+
+Where L</reap> fires depending on the C<$cxt> :
+
+    sub {
+     eval {
+      sub {
+       {
+        reap \&cleanup => $cxt;
+        ...
+       }     # $cxt = SCOPE(0), or HERE
+       ...
+      }->(); # $cxt = SCOPE(1), or UP, or SUB, or CALLER, or CALLER(0)
+      ...
+     };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+     ...
+    }->();   # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+    ...
+
+Where L</localize>, L</localize_elem> and L</localize_delete> act depending on the C<$cxt> :
+
+    sub {
+     eval {
+      sub {
+       {
+        localize '$x' => 1 => $cxt;
+        # $cxt = SCOPE(0), or HERE
+        ...
+       }
+       # $cxt = SCOPE(1), or UP, or SUB, or CALLER, or CALLER(0)
+       ...
+      }->();
+      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+      ...
+     };
+     # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+     ...
+    }->();
+    # $cxt = SCOPE(4), UP SUB UP SUB, or UP SUB EVAL, or UP CALLER(2), or TOP
+    ...
+
+Where L</unwind> and L</want_at> point to depending on the C<$cxt>:
+
+    sub {
+     eval {
+      sub {
+       {
+        unwind @things => $cxt;
+        ...
+       }
+       ...
+      }->(); # $cxt = SCOPE(0 .. 1), or HERE, or UP, or SUB, or CALLER(0)
+      ...
+     };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+     ...
+    }->();   # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+    ...
+
 =head1 EXPORT
 
 The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind> and L</want_at> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
