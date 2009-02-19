@@ -231,10 +231,12 @@ The context of the scope just above C<$from>.
 =head3 C<SUB $from>
 
 The context of the closest subroutine above C<$from>.
+Note that C<$from> is returned if it is already a subroutine context ; hence C<SUB SUB == SUB>.
 
 =head3 C<EVAL $from>
 
 The context of the closest eval above C<$from>.
+Note that C<$from> is returned if it is already an eval context ; hence C<EVAL EVAL == EVAL>.
 
 =head2 Getting a context from a level
 
