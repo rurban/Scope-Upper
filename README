@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.06
+    Version 0.07
 
 SYNOPSIS
         package X;
@@ -63,23 +63,27 @@ SYNOPSIS
         my @what = zap(); # @what contains @things
 
 DESCRIPTION
-    This module lets you defer actions that will take place when the control
-    flow returns into an upper scope. Currently, you can hook an upper scope
-    end, or localize variables, array/hash values or deletions of elements
-    in higher contexts. You can also return to an upper level and know which
-    context was in use then.
+    This module lets you defer actions *at run-time* that will take place
+    when the control flow returns into an upper scope. Currently, you can:
+
+    *   hook an upper scope end with "reap" ;
+
+    *   localize variables, array/hash values or deletions of elements in
+        higher contexts with respectively "localize", "localize_elem" and
+        "localize_delete" ;
+
+    *   return values immediately to an upper level with "unwind", and know
+        which context was in use then with "want_at".
 
 FUNCTIONS
     In all those functions, $context refers to the target scope.
 
-    You have to use one or a combination of "WORDS" to build the $context to
-    pass to these functions. This is needed in order to ensure that the
-    module still works when your program is ran in the debugger. Don't try
-    to use a raw value or things will get messy.
-
-    The only thing you can assume is that it is an *absolute* indicator of
-    the frame. This means that you can safely store it at some point and use
-    it when needed, and it will still denote the original scope.
+    You have to use one or a combination of "WORDS" to build the $context
+    passed to these functions. This is needed in order to ensure that the
+    module still works when your program is ran in the debugger. The only
+    thing you can assume is that it is an *absolute* indicator of the frame,
+    which means that you can safely store it at some point and use it when
+    needed, and it will still denote the original scope.
 
   "reap $callback, $context"
     Add a destructor that calls $callback when the upper scope represented
@@ -137,7 +141,9 @@ FUNCTIONS
 
   "unwind @values, $context"
     Returns @values *from* the context pointed by $context, i.e. from the
-    subroutine, eval or format just above $context.
+    subroutine, eval or format just above $context, and immediately restart
+    the program flow at this point - thus effectively returning to (or from,
+    depending on how you see it) an upper context.
 
     The upper context isn't coerced onto @values, which is hence always
     evaluated in list context. This means that
@@ -178,10 +184,12 @@ WORDS
     The context of the scope just above $from.
 
    "SUB $from"
-    The context of the closest subroutine above $from.
+    The context of the closest subroutine above $from. Note that $from is
+    returned if it is already a subroutine context ; hence "SUB SUB == SUB".
 
    "EVAL $from"
-    The context of the closest eval above $from.
+    The context of the closest eval above $from. Note that $from is returned
+    if it is already an eval context ; hence "EVAL EVAL == EVAL".
 
   Getting a context from a level
     Here, $level should denote a number of scopes above the current one.
@@ -196,6 +204,64 @@ WORDS
     corresponds to the context represented by "caller $level", but while
     e.g. "caller 0" refers to the caller context, "CALLER 0" will refer to
     the top scope in the current context.
+
+  Examples
+    Where "reap" fires depending on the $cxt :
+
+        sub {
+         eval {
+          sub {
+           {
+            reap \&cleanup => $cxt;
+            ...
+           }     # $cxt = SCOPE(0), or HERE
+           ...
+          }->(); # $cxt = SCOPE(1), or UP, or SUB, or CALLER, or CALLER(0)
+          ...
+         };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+         ...
+        }->();   # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+        ...
+
+    Where "localize", "localize_elem" and "localize_delete" act depending on
+    the $cxt :
+
+        sub {
+         eval {
+          sub {
+           {
+            localize '$x' => 1 => $cxt;
+            # $cxt = SCOPE(0), or HERE
+            ...
+           }
+           # $cxt = SCOPE(1), or UP, or SUB, or CALLER, or CALLER(0)
+           ...
+          }->();
+          # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+          ...
+         };
+         # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+         ...
+        }->();
+        # $cxt = SCOPE(4), UP SUB UP SUB, or UP SUB EVAL, or UP CALLER(2), or TOP
+        ...
+
+    Where "unwind" and "want_at" point to depending on the $cxt:
+
+        sub {
+         eval {
+          sub {
+           {
+            unwind @things => $cxt;
+            ...
+           }
+           ...
+          }->(); # $cxt = SCOPE(0 .. 1), or HERE, or UP, or SUB, or CALLER(0)
+          ...
+         };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+         ...
+        }->();   # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+        ...
 
 EXPORT
     The functions "reap", "localize", "localize_elem", "localize_delete",
@@ -228,14 +294,16 @@ CAVEATS
     The first case is "solved" by moving the "local" before the "reap", and
     the second by using "localize" instead of "reap".
 
-    "reap", "localize" and "localize_elem" effects can't cross "BEGIN"
-    blocks, hence calling those functions in "import" is deemed to be
-    useless. This is an hopeless case because "BEGIN" blocks are executed
+    The effects of "reap", "localize" and "localize_elem" can't cross
+    "BEGIN" blocks, hence calling those functions in "import" is deemed to
+    be useless. This is an hopeless case because "BEGIN" blocks are executed
     once while localizing constructs should do their job at each run.
+    However, it's possible to hook the end of the current scope compilation
+    with B::Hooks::EndOfScope.
 
     Some rare oddities may still happen when running inside the debugger. It
     may help to use a perl higher than 5.8.9 or 5.10.0, as they contain some
-    context fixes.
+    context-related fixes.
 
 DEPENDENCIES
     XSLoader (standard since perl 5.006).
