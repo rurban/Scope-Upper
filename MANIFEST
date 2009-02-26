@@ -18,6 +18,7 @@ t/20-localize-target.t
 t/21-localize-level.t
 t/22-localize-block.t
 t/23-localize-ctl.t
+t/24-localize-magic.t
 t/25-localize-multi.t
 t/30-localize_elem-target.t
 t/31-localize_elem-level.t
