@@ -147,21 +147,21 @@ our %h;
 our $x = 1;
 {
  localize_delete '$x', 2 => HERE;
- is $x, undef, 'localize "$x", anything => HERE [ok]';
+ is $x, undef, 'localize_delete "$x", anything => HERE [ok]';
 }
-is $x, 1, 'localize "$x", anything => HERE [end]';
+is $x, 1, 'localize_delete "$x", anything => HERE [end]';
 
 sub x { 1 };
 {
  localize_delete '&x', 2 => HERE;
- ok !exists(&x), 'localize "&x", anything => HERE [ok]';
+ ok !exists(&x), 'localize_delete "&x", anything => HERE [ok]';
 }
-is x(), 1, 'localize "&x", anything => HERE [end]';
+is x(), 1, 'localize_delete "&x", anything => HERE [end]';
 
 {
  localize_delete *x, sub { } => HERE;
- is !exists(&x),  1, 'localize *x, anything => HERE [ok 1]';
- is !defined($x), 1, 'localize *x, anything => HERE [ok 2]';
+ is !exists(&x),  1, 'localize_delete *x, anything => HERE [ok 1]';
+ is !defined($x), 1, 'localize_delete *x, anything => HERE [ok 2]';
 }
-is x(), 1, 'localize *x, anything => HERE [end 1]';
-is $x,  1, 'localize *x, anything => HERE [end 2]';
+is x(), 1, 'localize_delete *x, anything => HERE [end 1]';
+is $x,  1, 'localize_delete *x, anything => HERE [end 2]';
