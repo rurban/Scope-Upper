@@ -729,7 +729,9 @@ CLONE(...)
 PROTOTYPE: DISABLE
 CODE:
  PERL_UNUSED_VAR(items);
- MY_CXT_CLONE;
+ {
+  MY_CXT_CLONE;
+ }
 
 #endif /* SU_THREADSAFE */
 
