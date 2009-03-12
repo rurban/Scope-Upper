@@ -137,7 +137,7 @@ $y = undef;
  };
  is $@, "reaped\n", 'die in reap at eval [ok - $@]';
  is $x, 1, 'die in reap at eval [ok - x]';
- is $y, 1, 'die in reap at Eval [ok - y]';
+ is $y, 1, 'die in reap at eval [ok - y]';
 }
 
 $y = undef;
