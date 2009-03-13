@@ -28,8 +28,8 @@ t/40-localize_delete-target.t
 t/41-localize_delete-level.t
 t/44-localize_delete-magic.t
 t/50-unwind-target.t
-t/53-unwind-context.t
 t/55-unwind-multi.t
+t/56-unwind-context.t
 t/81-stress-level.t
 t/85-stress-unwind.t
 t/90-boilerplate.t
