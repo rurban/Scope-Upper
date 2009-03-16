@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 38;
+use Test::More tests => 38 + 4 * 7;
 
 use Scope::Upper qw/reap UP HERE/;
 
@@ -156,4 +156,43 @@ $y = undef;
  is $@, "reaped\n", 'die in reap inside eval [ok - $@]';
  is $x, 1, 'die in reap inside eval [ok - x]';
  is $y, 1, 'die in reap inside eval [ok - y]';
+}
+
+sub hijacked {
+ my ($cb, $desc) = @_;
+ local $x = 2;
+ sub {
+  local $x = 3;
+  &reap($cb => UP);
+  is $x, 3,     "$desc [not yet 1 - x]";
+  is $y, undef, "$desc [not yet 1 - y]";
+ }->();
+ is $x, 2,     "$desc [not yet 2 - x]";
+ is $y, undef, "$desc [not yet 2 - y]";
+ 11, 12;
+}
+
+for ([ sub { ++$y; 15, 16, 17, 18 },        'implicit ' ],
+     [ sub { ++$y; return 15, 16, 17, 18 }, ''          ]) {
+ my ($cb, $imp) = @$_;
+ $imp = "RT #44204 - ${imp}return from reap";
+ my $desc;
+ $y = undef;
+ {
+  $desc = "$imp in list context";
+  local $x = 1;
+  my @l = hijacked($cb, $desc);
+  is $x,         1,          "$desc [ok - x]";
+  is $y,         1,          "$desc [ok - y]";
+  is_deeply \@l, [ 11, 12 ], "$desc [ok - l]";
+ }
+ $y = undef;
+ {
+  $desc = "$imp in list context";
+  local $x = 1;
+  my $s = hijacked($cb, $desc);
+  is $x, 1,  "$desc [ok - x]";
+  is $y, 1,  "$desc [ok - y]";
+  is $s, 12, "$desc [ok - s]";
+ }
 }

@@ -310,7 +310,6 @@ STATIC void su_call(pTHX_ void *ud_) {
   --cxstack_ix;
 #endif
 
- SPAGAIN;
  PUTBACK;
 
  FREETMPS;
