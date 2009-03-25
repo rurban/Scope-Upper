@@ -117,7 +117,7 @@ BEGIN {
 
 =head2 C<reap $callback, $context>
 
-Add a destructor that calls C<$callback> when the upper scope represented by C<$context> ends.
+Add a destructor that calls C<$callback> (in void context) when the upper scope represented by C<$context> ends.
 
 =head2 C<localize $what, $value, $context>
 
