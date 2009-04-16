@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.07
+    Version 0.08
 
 SYNOPSIS
         package X;
@@ -57,7 +57,9 @@ SYNOPSIS
         sub zap {
          try {
           return @things; # returns to try() and then outside zap()
+          # not reached
          }
+         # not reached
         }
 
         my @what = zap(); # @what contains @things
@@ -86,8 +88,8 @@ FUNCTIONS
     needed, and it will still denote the original scope.
 
   "reap $callback, $context"
-    Add a destructor that calls $callback when the upper scope represented
-    by $context ends.
+    Add a destructor that calls $callback (in void context) when the upper
+    scope represented by $context ends.
 
   "localize $what, $value, $context"
     A "local" delayed to the time of first return into the upper scope
@@ -151,6 +153,7 @@ FUNCTIONS
         my $num = sub {
          my @a = ('a' .. 'z');
          unwind @a => HERE;
+         # not reached
         }->();
 
     will set $num to 'z'. You can use "want_at" to handle these cases.
@@ -164,6 +167,7 @@ FUNCTIONS
         my $num = sub {
          my @a = ('a' .. 'z');
          unwind +(want_at(HERE) ? @a : scalar @a) => HERE;
+         # not reached
         }->();
 
     will righteously set $num to 26.

@@ -1,5 +1,11 @@
 Revision history for Scope-Upper
 
+0.08    2009-04-16 22:50 UTC
+        + Fix : [RT #44204] : Stack corruption with reap(). Thanks Torsten
+                Foertsch for reporting.
+        + Fix : Building with Solaris CC.
+        + Tst : unwind() in threads.
+
 0.07    2009-02-20 00:20 UTC
         + Chg : The CLONE method will no longer be defined for non-threaded
                 perls.
