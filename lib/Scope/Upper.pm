@@ -211,6 +211,12 @@ The previous example can then be "corrected" :
 
 will righteously set C<$num> to C<26>.
 
+=head1 CONSTANTS
+
+=head2 C<SU_THREADSAFE>
+
+True iff the module could have been built when thread-safety features.
+
 =head1 WORDS
 
 =head2 Constants
@@ -318,6 +324,8 @@ Where L</unwind> and L</want_at> point to depending on the C<$cxt>:
 
 The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind> and L</want_at> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
 
+The constant L</SU_THREADSAFE> is also only exported on request, individually or by the tags C<':consts'> and C<':all'>.
+
 Same goes for the words L</TOP>, L</HERE>, L</UP>, L</SUB>, L</EVAL>, L</SCOPE> and L</CALLER> that are only exported on request, individually or by the tags C<':words'> and C<':all'>.
 
 =cut
@@ -326,8 +334,9 @@ use base qw/Exporter/;
 
 our @EXPORT      = ();
 our %EXPORT_TAGS = (
- funcs => [ qw/reap localize localize_elem localize_delete unwind want_at/ ],
- words => [ qw/TOP HERE UP SUB EVAL SCOPE CALLER/ ],
+ funcs  => [ qw/reap localize localize_elem localize_delete unwind want_at/ ],
+ words  => [ qw/TOP HERE UP SUB EVAL SCOPE CALLER/ ],
+ consts => [ qw/SU_THREADSAFE/ ],
 );
 our @EXPORT_OK   = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];

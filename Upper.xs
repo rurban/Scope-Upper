@@ -720,7 +720,8 @@ BOOT:
  HV *stash;
  MY_CXT_INIT;
  stash = gv_stashpv(__PACKAGE__, 1);
- newCONSTSUB(stash, "TOP", newSViv(0));
+ newCONSTSUB(stash, "TOP",           newSViv(0));
+ newCONSTSUB(stash, "SU_THREADSAFE", newSVuv(SU_THREADSAFE));
  newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
 }
 
