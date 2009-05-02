@@ -17,14 +17,16 @@ BEGIN {
  skipall 'threads required to test thread safety' unless eval "use threads; 1";
 }
 
-my $num;
-BEGIN { $num = 20; }
+use Test::More;
 
-use Test::More tests => $num;
+use Scope::Upper qw/unwind UP SU_THREADSAFE/;
+
+my $num;
 
 BEGIN {
+ skipall 'This Scope::Upper isn\'t thread safe' unless SU_THREADSAFE;
+ plan tests => ($num = 30);
  defined and diag "Using threads $_" for $threads::VERSION;
-
  if (eval "use Time::HiRes; 1") {
   defined and diag "Using Time::HiRes $_" for $Time::HiRes::VERSION;
   *usleep = \&Time::HiRes::usleep;
@@ -37,12 +39,7 @@ BEGIN {
  }
 }
 
-use Scope::Upper qw/unwind UP/;
-
 our $z;
-
-BEGIN {
-}
 
 sub up1 {
  my $tid  = threads->tid();
