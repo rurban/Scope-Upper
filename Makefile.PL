@@ -2,6 +2,15 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 
+my @DEFINES;
+
+# Threads, Windows and 5.8.x don't seem to be best friends
+if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
+ push @DEFINES, '-DSU_MULTIPLICITY=0';
+}
+
+@DEFINES = (DEFINE => join ' ', @DEFINES) if @DEFINES;
+
 my $dist = 'Scope-Upper';
 
 my %META = (
@@ -27,6 +36,7 @@ WriteMakefile(
     VERSION_FROM     => 'lib/Scope/Upper.pm',
     ABSTRACT_FROM    => 'lib/Scope/Upper.pm',
     PL_FILES         => {},
+    @DEFINES,
     PREREQ_PM        => {
         'Exporter' => 0,
         'XSLoader' => 0,
