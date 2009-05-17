@@ -293,8 +293,8 @@ STATIC void su_call(pTHX_ void *ud_) {
  PUSHMARK(SP);
  PUTBACK;
 
- /* If cxstack_ix isn't incremented there, the eval context will be overwritten
-  * when the new sub scope will be created in call_sv. */
+ /* If the recently popped context isn't saved there, it will be overwritten by
+  * the sub scope from call_sv, although it's still needed in our caller. */
 
 #if SU_HAS_PERL(5, 9, 5)
  if (dieing) {
