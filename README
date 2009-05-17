@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.08
+    Version 0.09
 
 SYNOPSIS
         package X;
@@ -172,6 +172,10 @@ FUNCTIONS
 
     will righteously set $num to 26.
 
+CONSTANTS
+  "SU_THREADSAFE"
+    True iff the module could have been built when thread-safety features.
+
 WORDS
   Constants
    "TOP"
@@ -271,6 +275,9 @@ EXPORT
     The functions "reap", "localize", "localize_elem", "localize_delete",
     "unwind" and "want_at" are only exported on request, either individually
     or by the tags ':funcs' and ':all'.
+
+    The constant "SU_THREADSAFE" is also only exported on request,
+    individually or by the tags ':consts' and ':all'.
 
     Same goes for the words "TOP", "HERE", "UP", "SUB", "EVAL", "SCOPE" and
     "CALLER" that are only exported on request, individually or by the tags

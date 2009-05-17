@@ -1,5 +1,12 @@
 Revision history for Scope-Upper
 
+0.09    2009-05-17 20:20 UTC
+        + Add : The new SU_THREADSAFE constant can be used to know whether the
+                module could have been built with thread safety enabled.
+        + Chg : Thread safety is disabled for perl 5.8 on Win32.
+        + Chg : A saner workaround for the "call_sv() during LEAVE clobbers the
+                still used last popped stack element" issue on 5.10.
+
 0.08    2009-04-16 22:50 UTC
         + Fix : [RT #44204] : Stack corruption with reap(). Thanks Torsten
                 Foertsch for reporting.

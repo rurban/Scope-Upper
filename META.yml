@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Scope-Upper
-version:            0.08
+version:            0.09
 abstract:           Act on upper scopes.
 author:
     - Vincent Pit <perl@profvince.com>
@@ -19,7 +19,7 @@ resources:
     bugtracker:  http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Scope-Upper
     homepage:    http://search.cpan.org/dist/Scope-Upper/
     license:     http://dev.perl.org/licenses/
-    repository:  http://git.profvince.com/?p=perl/modules/Scope-Upper.git
+    repository:  http://git.profvince.com/?p=perl%2Fmodules%2FScope-Upper.git
 no_index:
     directory:
         - t
