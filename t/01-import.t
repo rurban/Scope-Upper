@@ -3,13 +3,29 @@
 use strict;
 use warnings;
 
-use Test::More tests => 14;
+use Test::More tests => 2 * 14;
 
 require Scope::Upper;
 
-for (qw/reap localize localize_elem localize_delete unwind want_at
-        TOP HERE UP SUB EVAL SCOPE CALLER
-        SU_THREADSAFE/) {
+my %syms = (
+ reap            => '&;$',
+ localize        => '$$;$',
+ localize_elem   => '$$$;$',
+ localize_delete => '$$;$',
+ unwind          => undef,
+ want_at         => ';$',
+ TOP             => '',
+ HERE            => '',
+ UP              => ';$',
+ SUB             => ';$',
+ EVAL            => ';$',
+ SCOPE           => ';$',
+ CALLER          => ';$',
+ SU_THREADSAFE   => '',
+);
+
+for (keys %syms) {
  eval { Scope::Upper->import($_) };
- is($@, '', 'import ' . $_);
+ is $@,            '',        "import $_";
+ is prototype($_), $syms{$_}, "prototype $_";
 }
