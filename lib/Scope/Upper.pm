@@ -209,7 +209,7 @@ The previous example can then be "corrected" :
      # not reached
     }->();
 
-will righteously set C<$num> to C<26>.
+will rightfully set C<$num> to C<26>.
 
 =head1 CONSTANTS
 
