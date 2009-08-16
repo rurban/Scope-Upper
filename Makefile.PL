@@ -42,6 +42,7 @@ WriteMakefile(
     PREREQ_PM        => {
         'Exporter' => 0,
         'XSLoader' => 0,
+        'base'     => 0,
     },
     MIN_PERL_VERSION => 5.006,
     META_MERGE       => \%META,
