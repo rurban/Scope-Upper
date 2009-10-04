@@ -15,6 +15,12 @@ if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
 
 my $dist = 'Scope-Upper';
 
+my %PREREQ_PM = (
+ 'Exporter' => 0,
+ 'XSLoader' => 0,
+ 'base'     => 0,
+);
+
 my %META = (
  configure_requires => {
   'ExtUtils::MakeMaker' => 0,
@@ -22,6 +28,7 @@ my %META = (
  build_requires => {
   'ExtUtils::MakeMaker' => 0,
   'Test::More'          => 0,
+  %PREREQ_PM,
  },
  dynamic_config => 1,
  resources => {
@@ -40,11 +47,7 @@ WriteMakefile(
     ABSTRACT_FROM    => 'lib/Scope/Upper.pm',
     PL_FILES         => {},
     @DEFINES,
-    PREREQ_PM        => {
-        'Exporter' => 0,
-        'XSLoader' => 0,
-        'base'     => 0,
-    },
+    PREREQ_PM        => \%PREREQ_PM,
     MIN_PERL_VERSION => 5.006,
     META_MERGE       => \%META,
     dist             => {
