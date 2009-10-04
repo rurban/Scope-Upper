@@ -15,6 +15,11 @@ if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
 
 my $dist = 'Scope-Upper';
 
+(my $name = $dist) =~ s{-}{::}g;
+
+(my $file = $dist) =~ s{-}{/}g;
+$file = "lib/$file.pm";
+
 my %PREREQ_PM = (
  'Exporter' => 0,
  'XSLoader' => 0,
@@ -40,18 +45,18 @@ my %META = (
 );
 
 WriteMakefile(
-    NAME             => 'Scope::Upper',
+    NAME             => $name,
     AUTHOR           => 'Vincent Pit <perl@profvince.com>',
     LICENSE          => 'perl',
-    VERSION_FROM     => 'lib/Scope/Upper.pm',
-    ABSTRACT_FROM    => 'lib/Scope/Upper.pm',
+    VERSION_FROM     => $file,
+    ABSTRACT_FROM    => $file,
     PL_FILES         => {},
     @DEFINES,
     PREREQ_PM        => \%PREREQ_PM,
     MIN_PERL_VERSION => 5.006,
     META_MERGE       => \%META,
     dist             => {
-        PREOP    => 'pod2text lib/Scope/Upper.pm > $(DISTVNAME)/README',
+        PREOP    => "pod2text $file > \$(DISTVNAME)/README",
         COMPRESS => 'gzip -9f', SUFFIX => 'gz'
     },
     clean            => {
