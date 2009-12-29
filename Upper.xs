@@ -48,6 +48,14 @@
 # define HvNAME_get(H) HvNAME(H)
 #endif
 
+#ifndef ENTER_with_name
+# define ENTER_with_name(N) ENTER
+#endif
+
+#ifndef LEAVE_with_name
+# define LEAVE_with_name(N) LEAVE
+#endif
+
 #ifndef gv_fetchpvn_flags
 # define gv_fetchpvn_flags(A, B, C, D) gv_fetchpv((A), (C), (D))
 #endif
@@ -491,7 +499,7 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
 #define su_init(L, U, S) su_init(aTHX_ (L), (U), (S))
  I32 i, depth = 0, *origin;
 
- LEAVE;
+ LEAVE_with_name("sub");
 
  if (cxix >= cxstack_ix) {
   SU_UD_HANDLER(ud)(aTHX_ ud);
@@ -551,7 +559,7 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
  SAVEDESTRUCTOR_X(su_pop, ud);
 
 done:
- ENTER;
+ ENTER_with_name("sub");
 
  return depth;
 }
