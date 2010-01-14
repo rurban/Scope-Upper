@@ -131,19 +131,19 @@ $y = undef;
     {
      local $x = 3;
      localize '$y' => 1 => UP UP UP UP;
-     is $x, 3,     'die - reap outside eval [not yet 1 - x]';
-     is $y, undef, 'die - reap outside eval [not yet 1 - y]';
+     is $x, 3,     'die - localize outside eval [not yet 1 - x]';
+     is $y, undef, 'die - localize outside eval [not yet 1 - y]';
     }
-    is $x, 2,     'die - reap outside eval [not yet 2 - x]';
-    is $y, undef, 'die - reap outside eval [not yet 2 - y]';
+    is $x, 2,     'die - localize outside eval [not yet 2 - x]';
+    is $y, undef, 'die - localize outside eval [not yet 2 - y]';
     die;
    }
   };
-  is $x, 1,     'die - reap outside eval [not yet 3 - x]';
-  is $y, undef, 'die - reap outside eval [not yet 3 - y]';
+  is $x, 1,     'die - localize outside eval [not yet 3 - x]';
+  is $y, undef, 'die - localize outside eval [not yet 3 - y]';
  } # should trigger here
- is $x, 1, 'die - reap outside eval [ok - x]';
- is $y, 1, 'die - reap outside eval [ok - y]';
+ is $x, 1, 'die - localize outside eval [ok - x]';
+ is $y, 1, 'die - localize outside eval [ok - y]';
 }
 
 $y = undef;
@@ -155,16 +155,16 @@ $y = undef;
    {
     local $x = 3;
     localize '$y' => 1 => UP UP UP;
-    is $x, 3,     'die - reap at eval [not yet 1 - x]';
-    is $y, undef, 'die - reap at eval [not yet 1 - y]';
+    is $x, 3,     'die - localize at eval [not yet 1 - x]';
+    is $y, undef, 'die - localize at eval [not yet 1 - y]';
    }
-   is $x, 2,     'die - reap at eval [not yet 2 - x]';
-   is $y, undef, 'die - reap at eval [not yet 2 - y]';
+   is $x, 2,     'die - localize at eval [not yet 2 - x]';
+   is $y, undef, 'die - localize at eval [not yet 2 - y]';
    die;
   }
  }; # should trigger here
- is $x, 1, 'die - reap at eval [ok - x]';
- is $y, 1, 'die - reap at eval [ok - y]';
+ is $x, 1, 'die - localize at eval [ok - x]';
+ is $y, 1, 'die - localize at eval [ok - y]';
 }
 
 $y = undef;
@@ -176,16 +176,16 @@ $y = undef;
    {
     local $x = 3;
     localize '$y' => 1 => UP UP;
-    is $x, 3,     'die - reap inside eval [not yet 1 - x]';
-    is $y, undef, 'die - reap inside eval [not yet 1 - y]';
+    is $x, 3,     'die - localize inside eval [not yet 1 - x]';
+    is $y, undef, 'die - localize inside eval [not yet 1 - y]';
    }
-   is $x, 2,     'die - reap inside eval [not yet 2 - x]';
-   is $y, undef, 'die - reap inside eval [not yet 2 - y]';
+   is $x, 2,     'die - localize inside eval [not yet 2 - x]';
+   is $y, undef, 'die - localize inside eval [not yet 2 - y]';
    die;
   } # should trigger here
  };
- is $x, 1,     'die - reap inside eval [ok - x]';
- is $y, undef, 'die - reap inside eval [ok - y]';
+ is $x, 1,     'die - localize inside eval [ok - x]';
+ is $y, undef, 'die - localize inside eval [ok - y]';
 }
 
 SKIP:
