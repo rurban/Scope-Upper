@@ -490,6 +490,10 @@ STATIC void su_pop(pTHX_ void *ud) {
                                       ud, PL_savestack_ix, depth));
  } else {
   SU_UD_HANDLER(ud)(aTHX_ ud);
+#if SU_DEBUG
+  if (PL_scopestack[PL_scopestack_ix] != PL_savestack_ix)
+   PerlIO_printf(Perl_debug_log, "%p: expected: %2d got: %2d\n", ud, PL_scopestack_ix, PL_savestack_ix);
+#endif /* SU_DEBUG */
  }
 }
 
@@ -511,6 +515,19 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
  for (i = cxstack_ix; i > cxix; --i) {
   PERL_CONTEXT *cx = cxstack + i;
   switch (CxTYPE(cx)) {
+#if SU_HAS_PERL(5, 10, 0)
+   case CXt_BLOCK:
+    SU_D(PerlIO_printf(Perl_debug_log, "%p: cx %d is block\n", ud, i));
+    /* Given and when blocks are actually followed by a simple block, so skip
+     * it if needed. */
+    if (cxix > 0) { /* Implies i > 0 */
+     PERL_CONTEXT *next = cx - 1;
+     if (CxTYPE(next) == CXt_GIVEN || CxTYPE(next) == CXt_WHEN)
+      --cxix;
+    }
+    depth++;
+    break;
+#endif
 #if SU_HAS_PERL(5, 11, 0)
    case CXt_LOOP_FOR:
    case CXt_LOOP_PLAIN:
@@ -523,7 +540,7 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
     depth += 2;
     break;
    default:
-    SU_D(PerlIO_printf(Perl_debug_log, "%p: cx %d is normal\n", ud, i));
+    SU_D(PerlIO_printf(Perl_debug_log, "%p: cx %d is other\n", ud, i));
     depth++;
     break;
   }

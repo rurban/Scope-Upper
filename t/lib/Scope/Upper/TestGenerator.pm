@@ -25,6 +25,14 @@ my @blocks = (
  [ 'eval q[',   '];' ],
 );
 
+sub import {
+ if ($] >= 5.010001) {
+  push @blocks, [ 'given (1) { my $_;', '}' ];
+  require feature;
+  feature->import('switch');
+ }
+}
+
 @blocks = map [ map "$_\n", @$_ ], @blocks;
 
 sub _block {
