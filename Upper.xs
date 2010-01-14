@@ -397,7 +397,8 @@ STATIC void su_localize(pTHX_ void *ud_) {
  }
 
  SU_D({
-  SV *z = newSV_type(t);
+  SV *z = newSV(0);
+  SvUPGRADE(z, t);
   PerlIO_printf(Perl_debug_log, "%p: === localize a %s at %d (save is %d)\n",
                                  ud, sv_reftype(z, 0),
                                      PL_scopestack_ix, PL_savestack_ix);
