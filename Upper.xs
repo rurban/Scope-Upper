@@ -293,8 +293,12 @@ STATIC void su_call(pTHX_ void *ud_) {
 
  dSP;
 
- SU_D(PerlIO_printf(Perl_debug_log, "%p: @@@ call at %d (save is %d)\n",
-                                     ud, PL_scopestack_ix, PL_savestack_ix));
+ SU_D({
+  PerlIO_printf(Perl_debug_log,
+                "%p: @@@ call\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
+                 ud,           ud, PL_scopestack_ix, PL_savestack_ix);
+ });
+
  ENTER;
  SAVETMPS;
 
@@ -332,12 +336,13 @@ STATIC void su_call(pTHX_ void *ud_) {
 
 STATIC void su_reap(pTHX_ void *ud) {
 #define su_reap(U) su_reap(aTHX_ (U))
- SU_D(PerlIO_printf(Perl_debug_log, "%p: === reap at %d (save is %d)\n",
-                                     ud, PL_scopestack_ix, PL_savestack_ix));
+ SU_D({
+  PerlIO_printf(Perl_debug_log,
+                "%p: === reap\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
+                 ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
+ });
+
  SAVEDESTRUCTOR_X(su_call, ud);
- SU_D(PerlIO_printf(Perl_debug_log, "%p: savestack is now at %d, base at %d\n",
-                                     ud, PL_savestack_ix,
-                                         PL_scopestack[PL_scopestack_ix]));
 }
 
 /* ... Localize & localize array/hash element .............................. */
@@ -399,9 +404,10 @@ STATIC void su_localize(pTHX_ void *ud_) {
  SU_D({
   SV *z = newSV(0);
   SvUPGRADE(z, t);
-  PerlIO_printf(Perl_debug_log, "%p: === localize a %s at %d (save is %d)\n",
-                                 ud, sv_reftype(z, 0),
-                                     PL_scopestack_ix, PL_savestack_ix);
+  PerlIO_printf(Perl_debug_log, "%p: === localize a %s\n",ud, sv_reftype(z, 0));
+  PerlIO_printf(Perl_debug_log,
+                "%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
+                 ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
   SvREFCNT_dec(z);
  });
 
@@ -435,10 +441,6 @@ STATIC void su_localize(pTHX_ void *ud_) {
    break;
  }
 
- SU_D(PerlIO_printf(Perl_debug_log, "%p: savestack is now at %d, base at %d\n",
-                                     ud, PL_savestack_ix,
-                                         PL_scopestack[PL_scopestack_ix]));
-
  if (val)
   SvSetMagicSV((SV *) gv, val);
 
@@ -464,38 +466,43 @@ STATIC void su_pop(pTHX_ void *ud) {
  I32 depth, base, mark, *origin;
  depth = SU_UD_DEPTH(ud);
 
- SU_D(PerlIO_printf(Perl_debug_log, "%p: --- pop %s at %d from %d to %d [%d]\n",
-                                     ud, SU_CXNAME,
-                                         PL_scopestack_ix, PL_savestack_ix,
-                                         PL_scopestack[PL_scopestack_ix],
-                                         depth));
+ SU_D({
+  PerlIO_printf(Perl_debug_log, "%p: --- pop a %s\n", ud, SU_CXNAME);
+  PerlIO_printf(Perl_debug_log,
+    "%p: leave scope at depth=%2d scope_ix=%2d cur_top=%2d cur_base=%2d\n", ud,
+     depth, PL_scopestack_ix, PL_savestack_ix, PL_scopestack[PL_scopestack_ix]);
+ });
 
  origin = SU_UD_ORIGIN(ud);
  mark   = origin[depth];
  base   = origin[depth - 1];
 
- SU_D(PerlIO_printf(Perl_debug_log, "%p: clean from %d down to %d\n",
-                                     ud, mark, base));
+ SU_D(PerlIO_printf(Perl_debug_log,
+                    "%p: original scope was %*c top=%2d     base=%2d\n",
+                     ud,                20, ' ',    mark,        base));
 
  if (base < mark) {
+  SU_D(PerlIO_printf(Perl_debug_log, "%p: clear leftovers\n", ud));
   PL_savestack_ix = mark;
   leave_scope(base);
  }
  PL_savestack_ix = base;
- if (--depth > 0) {
-  SU_UD_DEPTH(ud) = depth;
-  SU_D(PerlIO_printf(Perl_debug_log, "%p: save new destructor at %d [%d]\n",
-                                      ud, PL_savestack_ix, depth));
+
+ SU_UD_DEPTH(ud) = --depth;
+
+ if (depth > 0) {
+  SU_D(PerlIO_printf(Perl_debug_log,
+          "%p: set new destructor at depth=%2d scope_ix=%2d save_ix=%2d\n",
+           ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
+
   SAVEDESTRUCTOR_X(su_pop, ud);
-  SU_D(PerlIO_printf(Perl_debug_log, "%p: pop end at at %d [%d]\n",
-                                      ud, PL_savestack_ix, depth));
  } else {
   SU_UD_HANDLER(ud)(aTHX_ ud);
-#if SU_DEBUG
-  if (PL_scopestack[PL_scopestack_ix] != PL_savestack_ix)
-   PerlIO_printf(Perl_debug_log, "%p: expected: %2d got: %2d\n", ud, PL_scopestack_ix, PL_savestack_ix);
-#endif /* SU_DEBUG */
  }
+
+ SU_D(PerlIO_printf(Perl_debug_log,
+                    "%p: --- end pop: cur_top=%2d == cur_base=%2d\n",
+                     ud, PL_savestack_ix, PL_scopestack[PL_scopestack_ix]));
 }
 
 /* --- Initialize the stack and the action userdata ------------------------ */
@@ -558,23 +565,24 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
  }
  origin[depth] = PL_savestack_ix;
 
- SU_D({
-  PerlIO_printf(Perl_debug_log, "%p: d=%d s=%d x=%d c=%d o=%d\n", ud,
-                depth, 0, PL_scopestack_ix - 1, PL_savestack_ix, origin[depth]);
-  for (i = depth - 1; i >= 0; --i) {
-   I32 x = PL_scopestack_ix  - depth + i;
-   PerlIO_printf(Perl_debug_log, "%p: d=%d s=%d x=%d c=%d o=%d\n", ud,
-                                  i, depth - i, x, PL_scopestack[x], origin[i]);
-  }
- });
-
  SU_UD_ORIGIN(ud) = origin;
  SU_UD_DEPTH(ud)  = depth;
 
- SU_D(PerlIO_printf(Perl_debug_log, "%p: set original destructor at %d [%d]\n",
-                                     ud, PL_savestack_ix, depth));
+ SU_D(PerlIO_printf(Perl_debug_log,
+        "%p: set original destructor at depth=%2d scope_ix=%2d save_ix=%2d\n",
+         ud,                     depth, PL_scopestack_ix - 1, PL_savestack_ix));
 
  SAVEDESTRUCTOR_X(su_pop, ud);
+
+ SU_D({
+  for (i = 0; i <= depth; ++i) {
+   I32 j = PL_scopestack_ix  - i;
+   PerlIO_printf(Perl_debug_log,
+                 "%p: depth=%2d scope_ix=%2d saved_floor=%2d new_floor=%2d\n",
+                  ud,        i, j, origin[depth - i],
+                                   i == 0 ? PL_savestack_ix : PL_scopestack[j]);
+  }
+ });
 
 done:
  ENTER_with_name("sub");
