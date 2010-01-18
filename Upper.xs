@@ -44,6 +44,10 @@
 # define SvPV_nolen_const(S) SvPV_nolen(S)
 #endif
 
+#ifndef SvREFCNT_inc_simple_void
+# define SvREFCNT_inc_simple_void(sv) SvREFCNT_inc(sv)
+#endif
+
 #ifndef HvNAME_get
 # define HvNAME_get(H) HvNAME(H)
 #endif
@@ -176,7 +180,7 @@ STATIC void su_save_adelete(pTHX_ AV *av, I32 idx) {
  Newx(ud, 1, su_ud_adelete);
  ud->av  = av;
  ud->idx = idx;
- SvREFCNT_inc(av);
+ SvREFCNT_inc_simple_void(av);
 
  SAVEDESTRUCTOR_X(su_adelete, ud);
 }
@@ -352,7 +356,7 @@ STATIC void su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *e
  UV deref = 0;
  svtype t = SVt_NULL;
 
- SvREFCNT_inc(sv);
+ SvREFCNT_inc_simple_void(sv);
 
  if (SvTYPE(sv) >= SVt_PVGV) {
   if (!val || !SvROK(val)) { /* local *x; or local *x = $val; */
