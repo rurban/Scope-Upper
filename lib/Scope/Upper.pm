@@ -378,6 +378,9 @@ L<XSLoader> (standard since perl 5.006).
 
 L<Alias>, L<Hook::Scope>, L<Scope::Guard>, L<Guard>.
 
+L<Continuation::Escape> is a thin wrapper around L<Scope::Upper> that gives you a continuation passing style interface to L</unwind>.
+It's easier to use, but it requires you to have control over the scope where you want to return.
+
 =head1 AUTHOR
 
 Vincent Pit, C<< <perl at profvince.com> >>, L<http://www.profvince.com>.
