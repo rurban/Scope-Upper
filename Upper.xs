@@ -401,6 +401,7 @@ STATIC void su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *e
   case SVt_PVCV:
   case SVt_PVGV:
    deref = 0;
+  default:
    break;
  }
  /* When deref is set, val isn't NULL */
