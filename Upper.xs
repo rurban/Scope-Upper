@@ -706,18 +706,21 @@ STATIC void su_unwind(pTHX_ void *ud_) {
 
 #define SU_SKIP_DB(C) \
  STMT_START {         \
-  I32 i = 1;          \
-  PERL_CONTEXT *cx = cxstack + (C); \
-  do {                              \
-   if (CxTYPE(cx) == CXt_BLOCK && (C) >= i) { \
-    --cx;                                     \
-    if (CxTYPE(cx) == CXt_SUB && cx->blk_sub.cv == GvCV(PL_DBsub)) { \
-     (C) -= i + 1;                 \
-     break;                        \
-    }                              \
-   } else                          \
-    break;                         \
-  } while (++i <= SU_SKIP_DB_MAX); \
+  I32 skipped = 0;    \
+  PERL_CONTEXT *base = cxstack;      \
+  PERL_CONTEXT *cx   = base + (C);   \
+  while (cx >= base && (C) > skipped && CxTYPE(cx) == CXt_BLOCK) \
+   --cx, ++skipped;                  \
+  if (cx >= base && (C) > skipped) { \
+   switch (CxTYPE(cx)) {  \
+    case CXt_SUB:         \
+     if (skipped <= SU_SKIP_DB_MAX && cx->blk_sub.cv == GvCV(PL_DBsub)) \
+      (C) -= skipped + 1; \
+      break;              \
+    default:              \
+     break;               \
+   }                      \
+  }                       \
  } STMT_END
 
 #define SU_GET_CONTEXT(A, B)   \
