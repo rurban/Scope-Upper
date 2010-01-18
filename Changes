@@ -1,5 +1,11 @@
 Revision history for Scope-Upper
 
+0.10    2010-01-18 23:50 UTC
+        + Fix : Properly handle given/when on 5.10.
+        + Fix : Some stack inconsistencies were fixed, though they were unlikely
+                to have an impact on your real-life code.
+        + Fix : Work around Kwalitee test misfailures.
+
 0.09    2009-05-17 20:20 UTC
         + Add : The new SU_THREADSAFE constant can be used to know whether the
                 module could have been built with thread safety enabled.
