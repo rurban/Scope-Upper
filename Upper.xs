@@ -296,7 +296,7 @@ STATIC void su_call(pTHX_ void *ud_) {
  SU_D({
   PerlIO_printf(Perl_debug_log,
                 "%p: @@@ call\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
-                 ud,           ud, PL_scopestack_ix, PL_savestack_ix);
+                 ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
  });
 
  ENTER;
@@ -466,12 +466,13 @@ STATIC void su_pop(pTHX_ void *ud) {
  I32 depth, base, mark, *origin;
  depth = SU_UD_DEPTH(ud);
 
- SU_D({
-  PerlIO_printf(Perl_debug_log, "%p: --- pop a %s\n", ud, SU_CXNAME);
+ SU_D(
   PerlIO_printf(Perl_debug_log,
-    "%p: leave scope at depth=%2d scope_ix=%2d cur_top=%2d cur_base=%2d\n", ud,
-     depth, PL_scopestack_ix, PL_savestack_ix, PL_scopestack[PL_scopestack_ix]);
- });
+   "%p: --- pop a %s\n"
+   "%p: leave scope     at depth=%2d scope_ix=%2d cur_top=%2d cur_base=%2d\n",
+    ud, SU_CXNAME,
+    ud, depth, PL_scopestack_ix,PL_savestack_ix,PL_scopestack[PL_scopestack_ix])
+ );
 
  origin = SU_UD_ORIGIN(ud);
  mark   = origin[depth];
@@ -479,7 +480,7 @@ STATIC void su_pop(pTHX_ void *ud) {
 
  SU_D(PerlIO_printf(Perl_debug_log,
                     "%p: original scope was %*c top=%2d     base=%2d\n",
-                     ud,                20, ' ',    mark,        base));
+                     ud,                24, ' ',    mark,        base));
 
  if (base < mark) {
   SU_D(PerlIO_printf(Perl_debug_log, "%p: clear leftovers\n", ud));
