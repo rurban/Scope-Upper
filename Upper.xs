@@ -349,23 +349,20 @@ STATIC void su_reap(pTHX_ void *ud) {
 
 typedef struct {
  su_ud_common ci;
- SV *sv;
- SV *val;
- SV *elem;
+ SV    *sv;
+ SV    *val;
+ SV    *elem;
+ svtype type;
 } su_ud_localize;
 
-STATIC void su_localize(pTHX_ void *ud_) {
-#define su_localize(U) su_localize(aTHX_ (U))
- su_ud_localize *ud = (su_ud_localize *) ud_;
- SV *sv   = ud->sv;
- SV *val  = ud->val;
- SV *elem = ud->elem;
- GV *gv;
+STATIC void su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *elem) {
+#define su_ud_localize_init(UD, S, V, E) su_ud_localize_init(aTHX_ (UD), (S), (V), (E))
  UV deref = 0;
  svtype t = SVt_NULL;
 
+ SvREFCNT_inc(sv);
+
  if (SvTYPE(sv) >= SVt_PVGV) {
-  gv = (GV *) sv;
   if (!val || !SvROK(val)) { /* local *x; or local *x = $val; */
    t = SVt_PVGV;
   } else {                   /* local *x = \$val; */
@@ -398,7 +395,45 @@ STATIC void su_localize(pTHX_ void *ud_) {
     t = SvTYPE(val);
    }
   }
-  gv = gv_fetchpvn_flags(s, l, GV_ADDMULTI, SVt_PVGV);
+  SvREFCNT_dec(sv);
+  sv = newSVpvn(s, l);
+ }
+
+ switch (t) {
+  case SVt_PVAV:
+  case SVt_PVHV:
+  case SVt_PVCV:
+  case SVt_PVGV:
+   deref = 0;
+   break;
+ }
+ /* When deref is set, val isn't NULL */
+
+ ud->sv   = sv;
+ ud->val  = val ? newSVsv(deref ? SvRV(val) : val) : NULL;
+ ud->elem = SvREFCNT_inc(elem);
+ ud->type = t;
+}
+
+STATIC void su_localize(pTHX_ void *ud_) {
+#define su_localize(U) su_localize(aTHX_ (U))
+ su_ud_localize *ud = (su_ud_localize *) ud_;
+ SV *sv   = ud->sv;
+ SV *val  = ud->val;
+ SV *elem = ud->elem;
+ svtype t = ud->type;
+ GV *gv;
+
+ if (SvTYPE(sv) >= SVt_PVGV) {
+  gv = (GV *) sv;
+ } else {
+#ifdef gv_fetchsv
+  gv = gv_fetchsv(sv, GV_ADDMULTI, SVt_PVGV);
+#else
+  STRLEN len;
+  const char *name = SvPV_const(sv, len);
+  gv = gv_fetchpvn_flags(name, len, GV_ADDMULTI, SVt_PVGV);
+#endif
  }
 
  SU_D({
@@ -436,8 +471,6 @@ STATIC void su_localize(pTHX_ void *ud_) {
    break;
   default:
    gv = (GV *) save_scalar(gv);
-   if (deref) /* val != NULL */
-    val = SvRV(val);
    break;
  }
 
@@ -932,17 +965,19 @@ localize(SV *sv, SV *val, ...)
 PROTOTYPE: $$;$
 PREINIT:
  I32 cxix;
+ I32 size = 3;
  su_ud_localize *ud;
 CODE:
  SU_GET_CONTEXT(2, 2);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
- SvREFCNT_inc(sv);
- ud->sv   = sv;
- ud->val  = newSVsv(val);
- ud->elem = NULL;
- su_init(cxix, ud, 3);
+ su_ud_localize_init(ud, sv, val, NULL);
+#if !SU_HAS_PERL(5, 8, 9)
+ if (ud->type >= SVt_PVGV)
+  size = 6;
+#endif
+ su_init(cxix, ud, size);
 
 void
 localize_elem(SV *sv, SV *elem, SV *val, ...)
@@ -955,11 +990,7 @@ CODE:
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
- SvREFCNT_inc(sv);
- ud->sv   = sv;
- ud->val  = newSVsv(val);
- SvREFCNT_inc(elem);
- ud->elem = elem;
+ su_ud_localize_init(ud, sv, val, elem);
  su_init(cxix, ud, 4);
 
 void
@@ -967,15 +998,16 @@ localize_delete(SV *sv, SV *elem, ...)
 PROTOTYPE: $$;$
 PREINIT:
  I32 cxix;
+ I32 size = 4;
  su_ud_localize *ud;
 CODE:
  SU_GET_CONTEXT(2, 2);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
- SvREFCNT_inc(sv);
- ud->sv   = sv;
- ud->val  = NULL;
- SvREFCNT_inc(elem);
- ud->elem = elem;
- su_init(cxix, ud, 4);
+ su_ud_localize_init(ud, sv, NULL, elem);
+#if !SU_HAS_PERL(5, 8, 9)
+ if (ud->type >= SVt_PVGV)
+  size = 6;
+#endif
+ su_init(cxix, ud, size);
