@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 21;
+use Test::More tests => 25;
 
 use Scope::Upper qw/localize_elem UP HERE/;
 
@@ -73,6 +73,16 @@ our @a;
  is_deeply \@a, [ 4 .. 6 ], 'localize_elem "@a", 4, 12 => UP [end]';
 }
 
+{
+ {
+  localize_elem '@nonexistent', 2, 7;
+  is_deeply eval('*nonexistent{ARRAY}'), [ undef, undef, 7 ],
+                             'localize_elem "@nonexistent", 2, 7 => HERE [ok]';
+ }
+ is_deeply eval('*nonexistent{ARRAY}'), [ ],
+                             'localize_elem "@nonexistent", 2, 7 => HERE [end]';
+}
+
 # Hashes
 
 our %h;
@@ -108,3 +118,12 @@ our %h;
  is_deeply \%h, { a => 1, b => 2 }, 'localize_elem "%h", "a", 5 => UP [end]';
 }
 
+{
+ {
+  localize_elem '%nonexistent', 'a', 13;
+  is_deeply eval('*nonexistent{HASH}'), { a => 13 },
+                          'localize_elem "%nonexistent", "a", 13 => HERE [ok]';
+ }
+ is_deeply eval('*nonexistent{HASH}'), { },
+                          'localize_elem "%nonexistent", "a", 13 => HERE [end]';
+}

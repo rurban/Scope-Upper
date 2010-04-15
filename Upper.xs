@@ -421,11 +421,11 @@ STATIC void su_localize(pTHX_ void *ud_) {
   gv = (GV *) sv;
  } else {
 #ifdef gv_fetchsv
-  gv = gv_fetchsv(sv, GV_ADDMULTI, SVt_PVGV);
+  gv = gv_fetchsv(sv, GV_ADDMULTI, t);
 #else
   STRLEN len;
   const char *name = SvPV_const(sv, len);
-  gv = gv_fetchpvn_flags(name, len, GV_ADDMULTI, SVt_PVGV);
+  gv = gv_fetchpvn_flags(name, len, GV_ADDMULTI, t);
 #endif
  }
 

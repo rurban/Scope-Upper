@@ -162,6 +162,10 @@ For example,
 
 will localize C<$Tool::tag> and not C<$Scope::tag>.
 
+Note that if C<$what> is a string denoting a variable that wasn't declared beforehand, the relevant slot will be vivified as needed and won't be deleted from the glob when the localization ends.
+This situation never arises with C<local> because it only compiles when the localized variable is already declared.
+Although I believe it shouldn't be a problem as glob slots definedness is pretty much an implementation detail, this behaviour may change in the future if proved harmful.
+
 =back
 
 =head2 C<localize_elem $what, $key, $value, $context>
@@ -169,6 +173,8 @@ will localize C<$Tool::tag> and not C<$Scope::tag>.
 Similar to L</localize> but for array and hash elements.
 If C<$what> is a glob, the slot to fill is determined from which type of reference C<$value> is ; otherwise it's inferred from the sigil.
 C<$key> is either an array index or a hash key, depending of which kind of variable you localize.
+
+Just like for L</localize>, when C<$what> is a string pointing to an undeclared variable, it will be vivified but the variable itself will be empty when the localization ends (although it will still exist in its parent glob).
 
 =head2 C<localize_delete $what, $key, $context>
 

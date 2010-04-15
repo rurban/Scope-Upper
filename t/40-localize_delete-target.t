@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 36;
+use Test::More tests => 44;
 
 use Scope::Upper qw/localize_delete UP HERE/;
 
@@ -107,6 +107,16 @@ our @a;
  is_deeply \@a, [ 4 .. 6 ], 'localize_delete "@a", 4 (exists) => UP [end]';
 }
 
+{
+ {
+  localize_delete '@nonexistent', 2;
+  is_deeply eval('*nonexistent{ARRAY}'), [ ],
+                       'localize_delete "@nonexistent", anything => HERE [ok]';
+ }
+ is_deeply eval('*nonexistent{ARRAY}'), [ ],
+                       'localize_delete "@nonexistent", anything => HERE [end]';
+}
+
 # Hashes
 
 our %h;
@@ -142,6 +152,16 @@ our %h;
  is_deeply \%h, { a => 1, b => 2 }, 'localize_delete "%h", "a" => UP [end]';
 }
 
+{
+ {
+  localize_delete '%nonexistent', 'a';
+  is_deeply eval('*nonexistent{HASH}'), { },
+                       'localize_delete "%nonexistent", anything => HERE [ok]';
+ }
+ is_deeply eval('*nonexistent{HASH}'), { },
+                       'localize_delete "%nonexistent", anything => HERE [end]';
+}
+
 # Others
 
 our $x = 1;
@@ -151,12 +171,32 @@ our $x = 1;
 }
 is $x, 1, 'localize_delete "$x", anything => HERE [end]';
 
+{
+ {
+  localize_delete '$nonexistent', 2;
+  is eval('${*nonexistent{SCALAR}}'), undef,
+                       'localize_delete "$nonexistent", anything => HERE [ok]';
+ }
+ is eval('${*nonexistent{SCALAR}}'), undef,
+                       'localize_delete "$nonexistent", anything => HERE [end]';
+}
+
 sub x { 1 };
 {
  localize_delete '&x', 2 => HERE;
  ok !exists(&x), 'localize_delete "&x", anything => HERE [ok]';
 }
 is x(), 1, 'localize_delete "&x", anything => HERE [end]';
+
+{
+ {
+  localize_delete '&nonexistent', 2;
+  is eval('exists &nonexistent'), !1,
+                       'localize_delete "&nonexistent", anything => HERE [ok]';
+ }
+ is eval('exists &nonexistent'), !1,
+                       'localize_delete "&nonexistent", anything => HERE [end]';
+}
 
 {
  localize_delete *x, sub { } => HERE;
