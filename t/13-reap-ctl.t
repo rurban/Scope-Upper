@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 38 + 30 + 4 * 7;
+use Test::More tests => 41 + 30 + 4 * 7;
 
 use Scope::Upper qw/reap UP HERE/;
 
@@ -120,6 +120,19 @@ $y = undef;
  };
  is $x, 1, 'die - reap inside eval [ok - x]';
  is $y, 1, 'die - reap inside eval [ok - y]';
+}
+
+{
+ my $z      = 0;
+ my $reaped = 0;
+ eval {
+  reap { $reaped = 1 };
+  is $reaped, 0, 'died of natural death - not reaped yet';
+  my $res = 1 / $z;
+ };
+ my $err = $@;
+ is   $reaped, 1,                    'died of natural death - reaped';
+ like $err,    qr/division by zero/, 'died of natural death - divided by zero';
 }
 
 SKIP:

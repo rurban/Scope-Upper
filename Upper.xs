@@ -283,7 +283,6 @@ STATIC void su_call(pTHX_ void *ud_) {
  su_ud_reap *ud = (su_ud_reap *) ud_;
 #if SU_HAS_PERL(5, 9, 5)
  PERL_CONTEXT saved_cx;
- I32 dieing = PL_op->op_type == OP_DIE;
  I32 cxix;
 #endif
 
@@ -305,20 +304,17 @@ STATIC void su_call(pTHX_ void *ud_) {
   * the sub scope from call_sv, although it's still needed in our caller. */
 
 #if SU_HAS_PERL(5, 9, 5)
- if (dieing) {
-  if (cxstack_ix < cxstack_max)
-   cxix = cxstack_ix + 1;
-  else
-   cxix = Perl_cxinc(aTHX);
-  saved_cx = cxstack[cxix];
- }
+ if (cxstack_ix < cxstack_max)
+  cxix = cxstack_ix + 1;
+ else
+  cxix = Perl_cxinc(aTHX);
+ saved_cx = cxstack[cxix];
 #endif
 
  call_sv(ud->cb, G_VOID);
 
 #if SU_HAS_PERL(5, 9, 5)
- if (dieing)
-  cxstack[cxix] = saved_cx;
+ cxstack[cxix] = saved_cx;
 #endif
 
  PUTBACK;
