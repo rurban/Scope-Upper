@@ -144,11 +144,23 @@ will set C<$x> to a reference to the string C<'foo'>.
 Other sigils (C<'@'>, C<'%'>, C<'&'> and C<'*'>) require C<$value> to be a reference of the corresponding type.
 
 When the symbol is given by a string, it is resolved when the actual localization takes place and not when C<localize> is called.
-This means that
+Thus, if the symbol name is not qualified, it will refer to the variable in the package where the localization actually takes place and not in the one where the C<localize> call was compiled.
+For example,
 
-    sub tag { localize '$x', $_[0] => UP }
+    {
+     package Scope;
+     sub new { localize '$tag', $_[0] => UP }
+    }
 
-will localize in the caller's namespace.
+    {
+     package Tool;
+     {
+      Scope->new;
+      ...
+     }
+    }
+
+will localize C<$Tool::tag> and not C<$Scope::tag>.
 
 =back
 
