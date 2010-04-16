@@ -1,5 +1,27 @@
 Revision history for Scope-Upper
 
+0.11    2010-04-16 23:20 UTC
+        + Chg : It's now forbiddent to pass a reference to a non-glob variable
+                as the localization target of localize(), localize_elem() and
+                localize_delete().
+        + Chg : localize_elem() now only accepts localization of arrays or hashs
+                elements. For other types, it used to be a synonym of localize.
+        + Chg : localize_elem() no longer accepts a glob as the target. You now
+                have to specify the variable as a string. This is because it was
+                impossible in this case to handle meaningfully the array or the
+                hash reference passed as the assigned value.
+        + Doc : The synopsys was revamped, and the rest of the documentation was
+                reviewed.
+        + Fix : [RT #55593] : Segfault when localizing hash or array element to
+                different package in different file.
+                Thanks Dagfinn Ilmari Mannsåker for reporting.
+        + Fix : [RT #56301] : reap loses eval context when dying naturally.
+                Thanks Andrew Main for reporting.
+        + Fix : Scope inconsistencies and segfaults when saving several
+                localizations into the same target scope.
+        + Fix : Stop skipping frames as a pop optimization. This caused breakage
+                under the debugger (and most likely outside as well).
+
 0.10    2010-01-18 23:50 UTC
         + Fix : Properly handle given/when on 5.10.
         + Fix : Some stack inconsistencies were fixed, though they were unlikely
