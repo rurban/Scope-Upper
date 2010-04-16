@@ -542,7 +542,7 @@ STATIC void su_pop(pTHX_ void *ud) {
  if (depth > 0) {
   I32 pad;
 
-  if (pad = SU_UD_PAD(ud)) {
+  if ((pad = SU_UD_PAD(ud))) {
    dMY_CXT;
    do {
     SU_D(PerlIO_printf(Perl_debug_log,
