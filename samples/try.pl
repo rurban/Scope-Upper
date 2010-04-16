@@ -21,7 +21,7 @@ sub zap {
  print "NOT REACHED\n";
 }
 
-my @what = zap(); # @what contains @things
-my $what = zap(); # @what contains @things
+my @what = zap(); # @what contains qw/a b c/
+my $what = zap(); # $what contains 3
 
 print "zap() returns @what in list context and $what in scalar context\n";
