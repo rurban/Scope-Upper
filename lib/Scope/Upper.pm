@@ -426,10 +426,14 @@ L<XSLoader> (standard since perl 5.006).
 
 =head1 SEE ALSO
 
+L<perlfunc/local>, L<perlsub/"Temporary Values via local()">.
+
 L<Alias>, L<Hook::Scope>, L<Scope::Guard>, L<Guard>.
 
 L<Continuation::Escape> is a thin wrapper around L<Scope::Upper> that gives you a continuation passing style interface to L</unwind>.
 It's easier to use, but it requires you to have control over the scope where you want to return.
+
+L<Scope::Escape>.
 
 =head1 AUTHOR
 
