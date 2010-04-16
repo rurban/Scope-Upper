@@ -540,36 +540,22 @@ STATIC void su_pop(pTHX_ void *ud) {
  SU_UD_DEPTH(ud) = --depth;
 
  if (depth > 0) {
-  I32 i = 1, pad;
+  I32 pad;
 
   if (pad = SU_UD_PAD(ud)) {
    dMY_CXT;
    do {
+    SU_D(PerlIO_printf(Perl_debug_log,
+          "%p: push a pad slot at depth=%2d scope_ix=%2d save_ix=%2d\n",
+           ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
     save_int(&MY_CXT.stack_placeholder);
    } while (--pad);
-  }
-  SAVEDESTRUCTOR_X(su_pop, ud);
-
-  /* Skip depths corresponding to scopes for which leave_scope() might not be
-   * called. */
-  while (depth > 1 && PL_scopestack_ix >= i) {
-   I32 j = PL_scopestack[PL_scopestack_ix - i];
-
-   if (j < PL_savestack_ix)
-    break;
-
-   SU_D(PerlIO_printf(Perl_debug_log,
-    "%p: skip scope%*cat depth=%2d scope_ix=%2d new_top=%2d >= cur_base=%2d\n",
-     ud,           6, ' ',   depth, PL_scopestack_ix - i, j, PL_savestack_ix));
-
-   SU_UD_DEPTH(ud) = --depth;
-
-   ++i;
   }
 
   SU_D(PerlIO_printf(Perl_debug_log,
           "%p: push destructor at depth=%2d scope_ix=%2d save_ix=%2d\n",
            ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
+  SAVEDESTRUCTOR_X(su_pop, ud);
  } else {
   SU_UD_HANDLER(ud)(aTHX_ ud);
  }
