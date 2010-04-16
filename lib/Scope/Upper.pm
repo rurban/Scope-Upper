@@ -117,11 +117,11 @@ BEGIN {
 
 =head2 C<reap $callback, $context>
 
-Add a destructor that calls C<$callback> (in void context) when the upper scope represented by C<$context> ends.
+Adds a destructor that calls C<$callback> (in void context) when the upper scope represented by C<$context> ends.
 
 =head2 C<localize $what, $value, $context>
 
-A C<local> delayed to the time of first return into the upper scope denoted by C<$context>.
+Introduces a C<local> delayed to the time of first return into the upper scope denoted by C<$context>.
 C<$what> can be :
 
 =over 4
@@ -161,6 +161,7 @@ For example,
     }
 
 will localize C<$Tool::tag> and not C<$Scope::tag>.
+If you want the other behaviour, you just have to specify C<$what> as a glob or a qualified name.
 
 Note that if C<$what> is a string denoting a variable that wasn't declared beforehand, the relevant slot will be vivified as needed and won't be deleted from the glob when the localization ends.
 This situation never arises with C<local> because it only compiles when the localized variable is already declared.
@@ -170,15 +171,15 @@ Although I believe it shouldn't be a problem as glob slots definedness is pretty
 
 =head2 C<localize_elem $what, $key, $value, $context>
 
-Similar to L</localize> but for array and hash elements.
-If C<$what> is a glob, the slot to fill is determined from which type of reference C<$value> is ; otherwise it's inferred from the sigil.
+Introduces a C<local $what[$key] = $value> or C<local $what{$key} = $value> delayed to the time of first return into the upper scope denoted by C<$context>.
+Just like for L</localize>, the type of localization is determined from which kind of reference C<$value> is when C<$what> is a glob, and from the sigil when it's a string.
 C<$key> is either an array index or a hash key, depending of which kind of variable you localize.
 
-Just like for L</localize>, when C<$what> is a string pointing to an undeclared variable, it will be vivified but the variable itself will be empty when the localization ends (although it will still exist in its parent glob).
+If C<$what> is a string pointing to an undeclared variable, the variable will be vivified as soon as the localization occurs and emptied when it ends, although it will still exist in its glob.
 
 =head2 C<localize_delete $what, $key, $context>
 
-Similiar to L</localize>, but for deleting variables or array/hash elements.
+Introduces the deletion of a variable or an array/hash element delayed to the time of first return into the upper scope denoted by C<$context>.
 C<$what> can be:
 
 =over 4
@@ -201,7 +202,7 @@ C<$key> is ignored.
 
 =head2 C<unwind @values, $context>
 
-Returns C<@values> I<from> the context pointed by C<$context>, i.e. from the subroutine, eval or format just above C<$context>, and immediately restart the program flow at this point - thus effectively returning to (or from, depending on how you see it) an upper context.
+Returns C<@values> I<from> the context pointed by C<$context>, i.e. from the subroutine, eval or format at or just above C<$context>, and immediately restart the program flow at this point - thus effectively returning to an upper scope.
 
 The upper context isn't coerced onto C<@values>, which is hence always evaluated in list context.
 This means that
@@ -217,7 +218,7 @@ You can use L</want_at> to handle these cases.
 
 =head2 C<want_at $context>
 
-Like C<wantarray>, but for the subroutine/eval/format just above C<$context>.
+Like C<wantarray>, but for the subroutine/eval/format at or just above C<$context>.
 
 The previous example can then be "corrected" :
 
