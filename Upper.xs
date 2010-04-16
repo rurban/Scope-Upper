@@ -1031,11 +1031,17 @@ PREINIT:
  I32 cxix;
  su_ud_localize *ud;
 CODE:
+ if (SvTYPE(sv) >= SVt_PVGV)
+  croak("Can't infer the element localization type from a glob and the value");
  SU_GET_CONTEXT(3, 3);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
  su_ud_localize_init(ud, sv, val, elem);
+ if (ud->type != SVt_PVAV && ud->type != SVt_PVHV) {
+  Safefree(ud);
+  croak("Can't localize an element of something that isn't an array or a hash");
+ }
  su_init(cxix, ud, 4);
 
 void

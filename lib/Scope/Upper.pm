@@ -202,7 +202,8 @@ Although I believe it shouldn't be a problem as glob slots definedness is pretty
 =head2 C<localize_elem $what, $key, $value, $context>
 
 Introduces a C<local $what[$key] = $value> or C<local $what{$key} = $value> delayed to the time of first return into the upper scope denoted by C<$context>.
-Just like for L</localize>, the type of localization is determined from which kind of reference C<$value> is when C<$what> is a glob, and from the sigil when it's a string.
+Unlike L</localize>, C<$what> must be a string and the type of localization is inferred from its sigil.
+The two only valid types are array and hash ; for anything besides those, L</localize_elem> will throw an exception.
 C<$key> is either an array index or a hash key, depending of which kind of variable you localize.
 
 If C<$what> is a string pointing to an undeclared variable, the variable will be vivified as soon as the localization occurs and emptied when it ends, although it will still exist in its glob.
