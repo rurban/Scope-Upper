@@ -1,48 +1,63 @@
 #!perl
 
-package X;
-
 use strict;
 use warnings;
 
-use blib;
+package Scope;
 
 use Scope::Upper qw/reap localize localize_elem localize_delete :words/;
 
-die 'run this script with some arguments!' unless @ARGV;
+sub new {
+ my ($class, $name) = @_;
 
-sub desc { shift->{desc} }
+ localize '$tag' => bless({ name => $name }, $class) => UP;
 
-sub set_tag {
- my ($desc) = @_;
-
- # First localize $x so that it gets destroyed last
- localize '$x' => bless({ desc => $desc }, __PACKAGE__) => UP;
-
- reap sub {
-  my $pkg = caller;
-  my $x = do { no strict 'refs'; ${$pkg.'::x'} }; # Get the $x in the scope
-  print $x->desc . ": done\n";
- } => SCOPE 1; # same as UP here
-
- localize_elem '%SIG', '__WARN__' => sub {
-  my $pkg = caller;
-  my $x = do { no strict 'refs'; ${$pkg.'::x'} }; # Get the $x in the scope
-  CORE::warn($x->desc . ': ' . join('', @_));
- } => UP CALLER 0; # same as UP here
-
- # delete last @ARGV element
- localize_delete '@ARGV', -1 => UP SUB HERE; # same as UP here
+ reap { print Scope->tag->name, ": end\n" } UP;
 }
 
-package main;
+# Get the tag stored in the caller namespace
+sub tag {
+ my $l   = 0;
+ my $pkg = __PACKAGE__;
+ $pkg    = caller $l++ while $pkg eq __PACKAGE__;
 
-use strict;
-use warnings;
+ no strict 'refs';
+ ${$pkg . '::tag'};
+}
+
+sub name { shift->{name} }
+
+# Locally capture warnings and reprint them with the name prefixed
+sub catch {
+ localize_elem '%SIG', '__WARN__' => sub {
+  print Scope->tag->name, ': ', @_;
+ } => UP;
+}
+
+# Locally clear @INC
+sub private {
+ for (reverse 0 .. $#INC) {
+  # First UP is the for loop, second is the sub boundary
+  localize_delete '@INC', $_ => UP UP;
+ }
+}
+
+package UserLand;
 
 {
- X::set_tag('pie');
- # $x is now a X object, and @ARGV has one element less
- warn 'what'; # warns "pie: what at ..."
- warn "\@ARGV contains [@ARGV]";
-} # "pie: done" is printed
+ Scope->new("top");      # initializes $UserLand::tag
+
+ {
+  Scope->catch;
+  my $one = 1 + undef;   # prints "top: Use of uninitialized value..."
+
+  {
+   Scope->private;
+   eval { require Cwd };
+   print $@;             # prints "Can't locate Cwd.pm in @INC (@INC contains:) at..."
+  }
+
+  require Cwd;           # loads Cwd.pm
+ }
+
+}                        # prints "top: done"

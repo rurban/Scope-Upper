@@ -20,50 +20,78 @@ BEGIN {
 
 =head1 SYNOPSIS
 
-    package X;
+L</reap>, L</localize>, L</localize_elem>, L</localize_delete> and L</WORDS> :
+
+    package Scope;
 
     use Scope::Upper qw/reap localize localize_elem localize_delete :words/;
 
-    sub desc { shift->{desc} }
+    sub new {
+     my ($class, $name) = @_;
 
-    sub set_tag {
-     my ($desc) = @_;
+     localize '$tag' => bless({ name => $name }, $class) => UP;
 
-     # First localize $x so that it gets destroyed last
-     localize '$x' => bless({ desc => $desc }, __PACKAGE__) => UP; # one scope up
-
-     reap sub {
-      my $pkg = caller;
-      my $x = do { no strict 'refs'; ${$pkg.'::x'} }; # Get the $x in the scope
-      print $x->desc . ": done\n";
-     } => SCOPE 1; # same as UP here
-
-     localize_elem '%SIG', '__WARN__' => sub {
-      my $pkg = caller;
-      my $x = do { no strict 'refs'; ${$pkg.'::x'} }; # Get the $x in the scope
-      CORE::warn($x->desc . ': ' . join('', @_));
-     } => UP CALLER 0; # same as UP here
-
-     # delete last @ARGV element
-     localize_delete '@ARGV', -1 => UP SUB HERE; # same as UP here
+     reap { print Scope->tag->name, ": end\n" } UP;
     }
 
-    package Y;
+    # Get the tag stored in the caller namespace
+    sub tag {
+     my $l   = 0;
+     my $pkg = __PACKAGE__;
+     $pkg    = caller $l++ while $pkg eq __PACKAGE__;
+
+     no strict 'refs';
+     ${$pkg . '::tag'};
+    }
+
+    sub name { shift->{name} }
+
+    # Locally capture warnings and reprint them with the name prefixed
+    sub catch {
+     localize_elem '%SIG', '__WARN__' => sub {
+      print Scope->tag->name, ': ', @_;
+     } => UP;
+    }
+
+    # Locally clear @INC
+    sub private {
+     for (reverse 0 .. $#INC) {
+      # First UP is the for loop, second is the sub boundary
+      localize_delete '@INC', $_ => UP UP;
+     }
+    }
+
+    ...
+
+    package UserLand;
 
     {
-     X::set_tag('pie');
-     # $x is now a X object, and @ARGV has one element less
-     warn 'what'; # warns "pie: what at ..."
-     ...
-    } # "pie: done" is printed
+     Scope->new("top");      # initializes $UserLand::tag
 
-    package Z;
+     {
+      Scope->catch;
+      my $one = 1 + undef;   # prints "top: Use of uninitialized value..."
+
+      {
+       Scope->private;
+       eval { require Cwd };
+       print $@;             # prints "Can't locate Cwd.pm in @INC (@INC contains:) at..."
+      }
+
+      require Cwd;           # loads Cwd.pm
+     }
+
+    }                        # prints "top: done"
+
+L</unwind> and L</want_at> :
+
+    package Try;
 
     use Scope::Upper qw/unwind want_at :words/;
 
     sub try (&) {
      my @result = shift->();
-     my $cx = SUB UP SUB;
+     my $cx = SUB UP; # Point to the sub above this one
      unwind +(want_at($cx) ? @result : scalar @result) => $cx;
     }
 
@@ -71,13 +99,15 @@ BEGIN {
 
     sub zap {
      try {
+      my @things = qw/a b c/;
       return @things; # returns to try() and then outside zap()
       # not reached
-     }
+     };
      # not reached
     }
 
-    my @what = zap(); # @what contains @things
+    my @stuff = zap(); # @stuff contains qw/a b c/
+    my $stuff = zap(); # $stuff contains 3
 
 =head1 DESCRIPTION
 
