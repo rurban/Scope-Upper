@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 25 + 8;
+use Test::More tests => 25 + 12;
 
 use Scope::Upper qw/localize_elem UP HERE/;
 
@@ -128,6 +128,8 @@ our %h;
                           'localize_elem "%nonexistent", "a", 13 => HERE [end]';
 }
 
+# Invalid
+
 my $invalid_glob = qr/^Can't infer the element localization type from a glob and the value/;
 my $invalid_type = qr/^Can't localize an element of something that isn't an array or a hash/;
 
@@ -185,4 +187,26 @@ my $invalid_type = qr/^Can't localize an element of something that isn't an arra
 
  eval { localize_elem *x, 0, *x };
  like $@, $invalid_glob, 'invalid localize_elem *x, 0, *x';
+}
+
+sub invalid_ref { qr/^Invalid \Q$_[0]\E reference as the localization target/ }
+
+{
+ eval { localize_elem \1, 0, 0 => HERE };
+ like $@, invalid_ref('SCALAR'), 'invalid localize_elem \1, 0, 0 => HERE';
+}
+
+{
+ eval { localize_elem [ ], 0, 0 => HERE };
+ like $@, invalid_ref('ARRAY'),  'invalid localize_elem [ ], 0, 0 => HERE';
+}
+
+{
+ eval { localize_elem { }, 0, 0 => HERE };
+ like $@, invalid_ref('HASH'),   'invalid localize_elem { }, 0, 0 => HERE';
+}
+
+{
+ eval { localize_elem sub { }, 0, 0 => HERE };
+ like $@, invalid_ref('CODE'),   'invalid localize_elem sub { }, 0, 0 => HERE';
 }

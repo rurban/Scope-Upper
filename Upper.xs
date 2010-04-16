@@ -380,6 +380,9 @@ STATIC void su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *e
    t = SvTYPE(SvRV(val));
    deref = 1;
   }
+ } else if (SvROK(sv)) {
+  croak("Invalid %s reference as the localization target",
+                 sv_reftype(SvRV(sv), 0));
  } else {
   STRLEN len, l;
   const char *p = SvPV_const(sv, len), *s;

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 44;
+use Test::More tests => 44 + 4;
 
 use Scope::Upper qw/localize_delete UP HERE/;
 
@@ -205,3 +205,27 @@ is x(), 1, 'localize_delete "&x", anything => HERE [end]';
 }
 is x(), 1, 'localize_delete *x, anything => HERE [end 1]';
 is $x,  1, 'localize_delete *x, anything => HERE [end 2]';
+
+# Invalid
+
+sub invalid_ref { qr/^Invalid \Q$_[0]\E reference as the localization target/ }
+
+{
+ eval { localize_delete \1, 0 => HERE };
+ like $@, invalid_ref('SCALAR'), 'invalid localize_delete \1, 0 => HERE';
+}
+
+{
+ eval { localize_delete [ ], 0 => HERE };
+ like $@, invalid_ref('ARRAY'),  'invalid localize_delete [ ], 0 => HERE';
+}
+
+{
+ eval { localize_delete { }, 0 => HERE };
+ like $@, invalid_ref('HASH'),   'invalid localize_delete { }, 0 => HERE';
+}
+
+{
+ eval { localize_delete sub { }, 0 => HERE };
+ like $@, invalid_ref('CODE'),   'invalid localize_delete sub { }, 0 => HERE';
+}

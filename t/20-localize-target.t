@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 50;
+use Test::More tests => 50 + 4;
 
 use Scope::Upper qw/localize UP HERE/;
 
@@ -253,4 +253,28 @@ my $xh = { a => 5, c => 7 };
   is foo(), 9, 'localize "&foo", sub { 8 } => UP [not yet]';
  }
  is foo(), 8, 'localize "&foo", sub { 8 } => UP [ok]';
+}
+
+# Invalid
+
+sub invalid_ref { qr/^Invalid \Q$_[0]\E reference as the localization target/ }
+
+{
+ eval { localize \1, 0 => HERE };
+ like $@, invalid_ref('SCALAR'), 'invalid localize \1, 0 => HERE';
+}
+
+{
+ eval { localize [ ], 0 => HERE };
+ like $@, invalid_ref('ARRAY'),  'invalid localize [ ], 0 => HERE';
+}
+
+{
+ eval { localize { }, 0 => HERE };
+ like $@, invalid_ref('HASH'),   'invalid localize { }, 0 => HERE';
+}
+
+{
+ eval { localize sub { }, 0 => HERE };
+ like $@, invalid_ref('CODE'),   'invalid localize sub { }, 0 => HERE';
 }
