@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+use blib;
+
 package Scope;
 
 use Scope::Upper qw/reap localize localize_elem localize_delete :words/;
@@ -53,7 +55,7 @@ package UserLand;
 
   {
    Scope->private;
-   eval { require Cwd };
+   eval { delete $INC{"Cwd.pm"}; require Cwd }; # blib loads Cwd
    print $@;             # prints "Can't locate Cwd.pm in @INC (@INC contains:) at..."
   }
 

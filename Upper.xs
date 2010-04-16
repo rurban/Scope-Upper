@@ -114,7 +114,24 @@
 # define MY_CXT_CLONE NOOP
 #endif
 
+/* --- Global data --------------------------------------------------------- */
+
+#define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
+
+typedef struct {
+ int stack_placeholder;
+ I32 cxix;
+ I32 items;
+ SV  **savesp;
+ OP  fakeop;
+} my_cxt_t;
+
+START_MY_CXT
+
 /* --- Stack manipulations ------------------------------------------------- */
+
+#define SU_SAVE_DESTRUCTOR_SIZE 3
+#define SU_SAVE_INT_SIZE        3
 
 #ifndef SvCANEXISTDELETE
 # define SvCANEXISTDELETE(sv) \
@@ -259,11 +276,13 @@ STATIC void su_save_helem(pTHX_ HV *hv, SV *keysv, SV *val) {
 
 typedef struct {
  I32 depth;
+ I32 pad;
  I32 *origin;
  void (*handler)(pTHX_ void *);
 } su_ud_common;
 
 #define SU_UD_DEPTH(U)   (((su_ud_common *) (U))->depth)
+#define SU_UD_PAD(U)     (((su_ud_common *) (U))->pad)
 #define SU_UD_ORIGIN(U)  (((su_ud_common *) (U))->origin)
 #define SU_UD_HANDLER(U) (((su_ud_common *) (U))->handler)
 
@@ -518,8 +537,14 @@ STATIC void su_pop(pTHX_ void *ud) {
  SU_UD_DEPTH(ud) = --depth;
 
  if (depth > 0) {
-  I32 i = 1;
+  I32 i = 1, pad;
 
+  if (pad = SU_UD_PAD(ud)) {
+   dMY_CXT;
+   do {
+    save_int(&MY_CXT.stack_placeholder);
+   } while (--pad);
+  }
   SAVEDESTRUCTOR_X(su_pop, ud);
 
   /* Skip depths corresponding to scopes for which leave_scope() might not be
@@ -540,8 +565,8 @@ STATIC void su_pop(pTHX_ void *ud) {
   }
 
   SU_D(PerlIO_printf(Perl_debug_log,
-         "%p: set destructor  at depth=%2d scope_ix=%2d save_ix=%2d\n",
-          ud,                        depth, PL_scopestack_ix, PL_savestack_ix));
+          "%p: push destructor at depth=%2d scope_ix=%2d save_ix=%2d\n",
+           ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
  } else {
   SU_UD_HANDLER(ud)(aTHX_ ud);
  }
@@ -551,27 +576,24 @@ STATIC void su_pop(pTHX_ void *ud) {
                      ud, PL_savestack_ix, PL_scopestack[PL_scopestack_ix]));
 }
 
-/* --- Global data --------------------------------------------------------- */
-
-#define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
-
-typedef struct {
- int stack_placeholder;
- I32 cxix;
- I32 items;
- SV  **savesp;
- OP  fakeop;
-} my_cxt_t;
-
-START_MY_CXT
-
 /* --- Initialize the stack and the action userdata ------------------------ */
 
 STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
 #define su_init(L, U, S) su_init(aTHX_ (L), (U), (S))
- I32 i, depth = 1, *origin;
+ I32 i, depth = 1, pad, offset, *origin;
 
  SU_D(PerlIO_printf(Perl_debug_log, "%p: ### init for cx %d\n", ud, cxix));
+
+ if (size <= SU_SAVE_DESTRUCTOR_SIZE)
+  pad = 0;
+ else {
+  I32 extra = size - SU_SAVE_DESTRUCTOR_SIZE;
+  pad = extra / SU_SAVE_INT_SIZE + ((extra % SU_SAVE_INT_SIZE) ? 1 : 0);
+ }
+ offset = SU_SAVE_DESTRUCTOR_SIZE + SU_SAVE_INT_SIZE * pad;
+
+ SU_D(PerlIO_printf(Perl_debug_log, "%p: size=%d pad=%d offset=%d\n",
+                                     ud,    size,   pad,   offset));
 
  for (i = cxstack_ix; i > cxix; --i) {
   PERL_CONTEXT *cx = cxstack + i;
@@ -606,7 +628,7 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
     break;
   }
  }
- SU_D(PerlIO_printf(Perl_debug_log, "%p: depth is %d\n", ud, depth));
+ SU_D(PerlIO_printf(Perl_debug_log, "%p: going down to depth %d\n", ud, depth));
 
  Newx(origin, depth + 1, I32);
  origin[0] = PL_scopestack[PL_scopestack_ix - depth];
@@ -614,26 +636,30 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
  for (i = depth - 1; i >= 1; --i) {
   I32 j = PL_scopestack_ix - i;
   origin[depth - i] = PL_scopestack[j];
-  PL_scopestack[j] += 3;
+  PL_scopestack[j] += offset;
  }
  origin[depth] = PL_savestack_ix;
 
  SU_UD_ORIGIN(ud) = origin;
  SU_UD_DEPTH(ud)  = depth;
-
- SU_D(PerlIO_printf(Perl_debug_log,
-        "%p: set original destructor at depth=%2d scope_ix=%2d save_ix=%2d\n",
-         ud,                     depth, PL_scopestack_ix - 1, PL_savestack_ix));
+ SU_UD_PAD(ud)    = pad;
 
  /* Make sure the first destructor fires by pushing enough fake slots on the
   * stack. */
- if (PL_savestack_ix + 3 <= PL_scopestack[PL_scopestack_ix - 1]) {
+ if (PL_savestack_ix + SU_SAVE_DESTRUCTOR_SIZE
+                                       <= PL_scopestack[PL_scopestack_ix - 1]) {
   dMY_CXT;
   do {
+   SU_D(PerlIO_printf(Perl_debug_log,
+                  "%p: push a fake slot      at scope_ix=%2d  save_ix=%2d\n",
+                   ud,                      PL_scopestack_ix, PL_savestack_ix));
    save_int(&MY_CXT.stack_placeholder);
-  } while (PL_savestack_ix + 3 <= PL_scopestack[PL_scopestack_ix - 1]);
+  } while (PL_savestack_ix + SU_SAVE_DESTRUCTOR_SIZE
+                                        <= PL_scopestack[PL_scopestack_ix - 1]);
  }
-
+ SU_D(PerlIO_printf(Perl_debug_log,
+                  "%p: push first destructor at scope_ix=%2d  save_ix=%2d\n",
+                   ud,                      PL_scopestack_ix, PL_savestack_ix));
  SAVEDESTRUCTOR_X(su_pop, ud);
 
  SU_D({
