@@ -3,13 +3,20 @@
 use strict;
 use warnings;
 
-use Test::More tests => 29 + 13 * 2;
+use Test::More;
+
+BEGIN {
+ if ($^P) {
+  plan skip_all => 'hardcoded values are wrong under the debugger';
+ } else {
+  plan tests    => 29 + 13 * 2;
+ }
+}
 
 use Scope::Upper qw/:words/;
 
 # This test is for internal use only and doesn't imply any kind of future
 # compatibility on what the words should actually return.
-# It is expected to fail when ran under the debugger.
 
 is HERE, 0, 'main : here';
 is TOP,  0, 'main : top';
