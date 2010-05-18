@@ -20,9 +20,10 @@ use Test::More tests => 8;
 
 our @a;
 
-tie @a, 'Scope::Upper::Test::TiedArray';
 {
- local @a = (5 .. 7);
+ local @a;
+ tie @a, 'Scope::Upper::Test::TiedArray';
+ @a = (5 .. 7);
  {
   localize_elem '@a', 4 => 12 => HERE;
   is_deeply \@a, [ 5 .. 7, undef, 12 ], 'localize_elem @incomplete_tied_array, $nonexistent, 12 => HERE [ok]';

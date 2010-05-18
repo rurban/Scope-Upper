@@ -25,9 +25,10 @@ our $deleted;
 
 our @a;
 
-tie @a, 'Scope::Upper::Test::TiedArray';
 {
- local @a = (5 .. 7);
+ local @a;
+ tie @a, 'Scope::Upper::Test::TiedArray';
+ @a = (5 .. 7);
  local $a[4] = 9;
  is $deleted, undef, 'localize_delete @tied_array, $existent => HERE [not deleted]';
  {
@@ -40,7 +41,9 @@ tie @a, 'Scope::Upper::Test::TiedArray';
 }
 
 {
- local @a = (4 .. 6);
+ local @a;
+ tie @a, 'Scope::Upper::Test::TiedArray';
+ @a = (4 .. 6);
  local $a[4] = 7;
  {
   localize_delete '@main::a', -1 => HERE;
@@ -53,7 +56,9 @@ SKIP:
 {
  skip '$NEGATIVE_INDICES has no special meaning on 5.8.0 and older' => 2 if $] < 5.008_001;
  local $Scope::Upper::Test::TiedArray::NEGATIVE_INDICES = 1;
- local @a = (4 .. 6);
+ local @a;
+ tie @a, 'Scope::Upper::Test::TiedArray';
+ @a = (4 .. 6);
  local $a[4] = 7;
  {
   localize_delete '@main::a', -1 => HERE;
