@@ -624,8 +624,8 @@ STATIC void su_pop(pTHX_ void *ud) {
 
 /* --- Initialize the stack and the action userdata ------------------------ */
 
-STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
-#define su_init(L, U, S) su_init(aTHX_ (L), (U), (S))
+STATIC I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
+#define su_init(U, C, S) su_init(aTHX_ (U), (C), (S))
  I32 i, depth = 1, pad, offset, *origin;
 
  SU_D(PerlIO_printf(Perl_debug_log, "%p: ### init for cx %d\n", ud, cxix));
@@ -1051,7 +1051,7 @@ CODE:
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_reap;
  ud->cb = newSVsv(hook);
- su_init(cxix, ud, SU_SAVE_DESTRUCTOR_SIZE);
+ su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
 
 void
 localize(SV *sv, SV *val, ...)
@@ -1066,7 +1066,7 @@ CODE:
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
  size = su_ud_localize_init(ud, sv, val, NULL);
- su_init(cxix, ud, size);
+ su_init(ud, cxix, size);
 
 void
 localize_elem(SV *sv, SV *elem, SV *val, ...)
@@ -1087,7 +1087,7 @@ CODE:
   SU_UD_LOCALIZE_FREE(ud);
   croak("Can't localize an element of something that isn't an array or a hash");
  }
- su_init(cxix, ud, size);
+ su_init(ud, cxix, size);
 
 void
 localize_delete(SV *sv, SV *elem, ...)
@@ -1102,4 +1102,4 @@ CODE:
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
  size = su_ud_localize_init(ud, sv, NULL, elem);
- su_init(cxix, ud, size);
+ su_init(ud, cxix, size);
