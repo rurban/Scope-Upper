@@ -135,6 +135,40 @@ START_MY_CXT
 #define SU_SAVE_DESTRUCTOR_SIZE  3
 #define SU_SAVE_PLACEHOLDER_SIZE 3
 
+#define SU_SAVE_SCALAR_SIZE 3
+
+#define SU_SAVE_ARY_SIZE      3
+#define SU_SAVE_AELEM_SIZE    4
+#ifdef SAVEADELETE
+# define SU_SAVE_ADELETE_SIZE 3
+#else
+# define SU_SAVE_ADELETE_SIZE SU_SAVE_DESTRUCTOR_SIZE
+#endif
+#if SU_SAVE_AELEM_SIZE < SU_SAVE_ADELETE_SIZE
+# define SU_SAVE_AELEM_OR_ADELETE_SIZE SU_SAVE_ADELETE_SIZE
+#else
+# define SU_SAVE_AELEM_OR_ADELETE_SIZE SU_SAVE_AELEM_SIZE
+#endif
+
+#define SU_SAVE_HASH_SIZE    3
+#define SU_SAVE_HELEM_SIZE   4
+#define SU_SAVE_HDELETE_SIZE 4
+#if SU_SAVE_HELEM_SIZE < SU_SAVE_HDELETE_SIZE
+# define SU_SAVE_HELEM_OR_HDELETE_SIZE SU_SAVE_HDELETE_SIZE
+#else
+# define SU_SAVE_HELEM_OR_HDELETE_SIZE SU_SAVE_HELEM_SIZE
+#endif
+
+#define SU_SAVE_SPTR_SIZE 3
+
+#if !SU_HAS_PERL(5, 8, 9)
+# define SU_SAVE_GP_SIZE 6
+#elif !SU_HAS_PERL(5, 13, 0)
+# define SU_SAVE_GP_SIZE 3
+#else
+# define SU_SAVE_GP_SIZE 4
+#endif
+
 #ifndef SvCANEXISTDELETE
 # define SvCANEXISTDELETE(sv) \
   (!SvRMAGICAL(sv)            \
@@ -368,10 +402,11 @@ typedef struct {
  svtype type;
 } su_ud_localize;
 
-STATIC void su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *elem) {
+STATIC I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *elem) {
 #define su_ud_localize_init(UD, S, V, E) su_ud_localize_init(aTHX_ (UD), (S), (V), (E))
  UV deref = 0;
  svtype t = SVt_NULL;
+ I32 size;
 
  SvREFCNT_inc_simple_void(sv);
 
@@ -417,11 +452,25 @@ STATIC void su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *e
 
  switch (t) {
   case SVt_PVAV:
-  case SVt_PVHV:
-  case SVt_PVCV:
-  case SVt_PVGV:
+   size  = elem ? SU_SAVE_AELEM_OR_ADELETE_SIZE
+                : SU_SAVE_ARY_SIZE;
    deref = 0;
+   break;
+  case SVt_PVHV:
+   size  = elem ? SU_SAVE_HELEM_OR_HDELETE_SIZE
+                : SU_SAVE_HASH_SIZE;
+   deref = 0;
+   break;
+  case SVt_PVGV:
+   size  = SU_SAVE_GP_SIZE;
+   deref = 0;
+   break;
+  case SVt_PVCV:
+   size  = SU_SAVE_SPTR_SIZE;
+   deref = 0;
+   break;
   default:
+   size = SU_SAVE_SCALAR_SIZE;
    break;
  }
  /* When deref is set, val isn't NULL */
@@ -430,6 +479,8 @@ STATIC void su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *e
  ud->val  = val ? newSVsv(deref ? SvRV(val) : val) : NULL;
  ud->elem = SvREFCNT_inc(elem);
  ud->type = t;
+
+ return size;
 }
 
 STATIC void su_localize(pTHX_ void *ud_) {
@@ -996,25 +1047,21 @@ CODE:
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_reap;
  ud->cb = newSVsv(hook);
- su_init(cxix, ud, 3);
+ su_init(cxix, ud, SU_SAVE_DESTRUCTOR_SIZE);
 
 void
 localize(SV *sv, SV *val, ...)
 PROTOTYPE: $$;$
 PREINIT:
  I32 cxix;
- I32 size = 3;
+ I32 size;
  su_ud_localize *ud;
 CODE:
  SU_GET_CONTEXT(2, 2);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
- su_ud_localize_init(ud, sv, val, NULL);
-#if !SU_HAS_PERL(5, 8, 9)
- if (ud->type >= SVt_PVGV)
-  size = 6;
-#endif
+ size = su_ud_localize_init(ud, sv, val, NULL);
  su_init(cxix, ud, size);
 
 void
@@ -1022,6 +1069,7 @@ localize_elem(SV *sv, SV *elem, SV *val, ...)
 PROTOTYPE: $$$;$
 PREINIT:
  I32 cxix;
+ I32 size;
  su_ud_localize *ud;
 CODE:
  if (SvTYPE(sv) >= SVt_PVGV)
@@ -1030,28 +1078,24 @@ CODE:
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
- su_ud_localize_init(ud, sv, val, elem);
+ size = su_ud_localize_init(ud, sv, val, elem);
  if (ud->type != SVt_PVAV && ud->type != SVt_PVHV) {
   Safefree(ud);
   croak("Can't localize an element of something that isn't an array or a hash");
  }
- su_init(cxix, ud, 4);
+ su_init(cxix, ud, size);
 
 void
 localize_delete(SV *sv, SV *elem, ...)
 PROTOTYPE: $$;$
 PREINIT:
  I32 cxix;
- I32 size = 4;
+ I32 size;
  su_ud_localize *ud;
 CODE:
  SU_GET_CONTEXT(2, 2);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
- su_ud_localize_init(ud, sv, NULL, elem);
-#if !SU_HAS_PERL(5, 8, 9)
- if (ud->type >= SVt_PVGV)
-  size = 6;
-#endif
+ size = su_ud_localize_init(ud, sv, NULL, elem);
  su_init(cxix, ud, size);
