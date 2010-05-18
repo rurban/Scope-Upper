@@ -887,11 +887,11 @@ BOOT:
 void
 CLONE(...)
 PROTOTYPE: DISABLE
-CODE:
- PERL_UNUSED_VAR(items);
+PPCODE:
  {
   MY_CXT_CLONE;
  }
+ XSRETURN(0);
 
 #endif /* SU_THREADSAFE */
 
