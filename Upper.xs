@@ -402,6 +402,13 @@ typedef struct {
  svtype type;
 } su_ud_localize;
 
+#define SU_UD_LOCALIZE_FREE(U) STMT_START { \
+ SvREFCNT_dec((U)->elem); \
+ SvREFCNT_dec((U)->val);  \
+ SvREFCNT_dec((U)->sv);   \
+ SU_UD_FREE(U);           \
+} STMT_END
+
 STATIC I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *elem) {
 #define su_ud_localize_init(UD, S, V, E) su_ud_localize_init(aTHX_ (UD), (S), (V), (E))
  UV deref = 0;
@@ -546,10 +553,7 @@ STATIC void su_localize(pTHX_ void *ud_) {
   SvSetMagicSV((SV *) gv, val);
 
 done:
- SvREFCNT_dec(ud->elem);
- SvREFCNT_dec(ud->val);
- SvREFCNT_dec(ud->sv);
- SU_UD_FREE(ud);
+ SU_UD_LOCALIZE_FREE(ud);
 }
 
 /* --- Pop a context back -------------------------------------------------- */
@@ -1080,7 +1084,7 @@ CODE:
  SU_UD_HANDLER(ud) = su_localize;
  size = su_ud_localize_init(ud, sv, val, elem);
  if (ud->type != SVt_PVAV && ud->type != SVt_PVHV) {
-  Safefree(ud);
+  SU_UD_LOCALIZE_FREE(ud);
   croak("Can't localize an element of something that isn't an array or a hash");
  }
  su_init(cxix, ud, size);
