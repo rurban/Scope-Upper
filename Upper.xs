@@ -119,19 +119,21 @@
 #define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
 typedef struct {
- int stack_placeholder;
- I32 cxix;
- I32 items;
+ char *stack_placeholder;
+ I32   cxix;
+ I32   items;
  SV  **savesp;
- OP  fakeop;
+ OP    fakeop;
 } my_cxt_t;
 
 START_MY_CXT
 
 /* --- Stack manipulations ------------------------------------------------- */
 
-#define SU_SAVE_DESTRUCTOR_SIZE 3
-#define SU_SAVE_INT_SIZE        3
+#define SU_SAVE_PLACEHOLDER() save_pptr(&MY_CXT.stack_placeholder)
+
+#define SU_SAVE_DESTRUCTOR_SIZE  3
+#define SU_SAVE_PLACEHOLDER_SIZE 3
 
 #ifndef SvCANEXISTDELETE
 # define SvCANEXISTDELETE(sv) \
@@ -548,7 +550,7 @@ STATIC void su_pop(pTHX_ void *ud) {
     SU_D(PerlIO_printf(Perl_debug_log,
           "%p: push a pad slot at depth=%2d scope_ix=%2d save_ix=%2d\n",
            ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
-    save_int(&MY_CXT.stack_placeholder);
+    SU_SAVE_PLACEHOLDER();
    } while (--pad);
   }
 
@@ -577,9 +579,11 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
   pad = 0;
  else {
   I32 extra = size - SU_SAVE_DESTRUCTOR_SIZE;
-  pad = extra / SU_SAVE_INT_SIZE + ((extra % SU_SAVE_INT_SIZE) ? 1 : 0);
+  pad = extra / SU_SAVE_PLACEHOLDER_SIZE;
+  if (extra % SU_SAVE_PLACEHOLDER_SIZE)
+   ++pad;
  }
- offset = SU_SAVE_DESTRUCTOR_SIZE + SU_SAVE_INT_SIZE * pad;
+ offset = SU_SAVE_DESTRUCTOR_SIZE + SU_SAVE_PLACEHOLDER_SIZE * pad;
 
  SU_D(PerlIO_printf(Perl_debug_log, "%p: size=%d pad=%d offset=%d\n",
                                      ud,    size,   pad,   offset));
@@ -642,7 +646,7 @@ STATIC I32 su_init(pTHX_ I32 cxix, void *ud, I32 size) {
    SU_D(PerlIO_printf(Perl_debug_log,
                   "%p: push a fake slot      at scope_ix=%2d  save_ix=%2d\n",
                    ud,                      PL_scopestack_ix, PL_savestack_ix));
-   save_int(&MY_CXT.stack_placeholder);
+   SU_SAVE_PLACEHOLDER();
   } while (PL_savestack_ix + SU_SAVE_DESTRUCTOR_SIZE
                                         <= PL_scopestack[PL_scopestack_ix - 1]);
  }
@@ -818,7 +822,7 @@ BOOT:
  HV *stash;
 
  MY_CXT_INIT;
- MY_CXT.stack_placeholder = 0;
+ MY_CXT.stack_placeholder = NULL;
 
  stash = gv_stashpv(__PACKAGE__, 1);
  newCONSTSUB(stash, "TOP",           newSViv(0));
