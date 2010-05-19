@@ -1,5 +1,11 @@
 Revision history for Scope-Upper
 
+0.12    2010-05-19 00:45 UTC
+        + Fix : Compatibility with perl 5.13.
+        + Fix : Test failures with perl 5.8.0.
+        + Fix : A minor leak of SVs when a non array/hash was passed to
+                localize_elem().
+
 0.11    2010-04-16 23:20 UTC
         + Chg : It's now forbiddent to pass a reference to a non-glob variable
                 as the localization target of localize(), localize_elem() and

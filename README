@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.11
+    Version 0.12
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
