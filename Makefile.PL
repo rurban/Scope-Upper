@@ -4,7 +4,21 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 
+use Config;
+
+my $pl   = $Config{perl_patchlevel};
+my $desc = $Config{git_describe};
+for ($pl, $desc) {
+ $_ = undef unless defined and length;
+}
+
 my @DEFINES;
+
+print "Checking if this is an official release of perl... ";
+my $is_release = ($] < 5.011) ? (defined($pl) || defined($desc) ? 0 : 1)
+                              : (defined($desc)                 ? 0 : 1);
+push @DEFINES, "-DSU_RELEASE=$is_release";
+print $is_release  ? "yes\n" : "no\n";
 
 # Threads, Windows and 5.8.x don't seem to be best friends
 if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
@@ -28,6 +42,7 @@ my %PREREQ_PM = (
 
 my %META = (
  configure_requires => {
+  'Config'              => 0,
   'ExtUtils::MakeMaker' => 0,
  },
  build_requires => {

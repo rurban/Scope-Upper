@@ -69,6 +69,7 @@
 #endif
 
 #define SU_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
+#define SU_HAS_PERL_EXACT(R, V, S) ((PERL_REVISION == (R)) && (PERL_VERSION == (V)) && (PERL_SUBVERSION == (S)))
 
 /* --- Threads and multiplicity -------------------------------------------- */
 
@@ -163,7 +164,7 @@ START_MY_CXT
 
 #if !SU_HAS_PERL(5, 8, 9)
 # define SU_SAVE_GP_SIZE 6
-#elif !SU_HAS_PERL(5, 13, 0)
+#elif !SU_HAS_PERL(5, 13, 0) || (SU_RELEASE && SU_HAS_PERL_EXACT(5, 13, 0))
 # define SU_SAVE_GP_SIZE 3
 #else
 # define SU_SAVE_GP_SIZE 4
