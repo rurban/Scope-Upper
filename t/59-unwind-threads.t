@@ -12,9 +12,14 @@ sub skipall {
 use Config qw/%Config/;
 
 BEGIN {
+ my $force = $ENV{PERL_SCOPE_UPPER_TEST_THREADS} ? 1 : !1;
+ my $t_v   = $force ? '0' : '1.67';
  skipall 'This perl wasn\'t built to support threads'
                                                     unless $Config{useithreads};
- skipall 'threads required to test thread safety' unless eval "use threads; 1";
+ skipall 'perl 5.13.4 required to test thread safety'
+                                                unless $force or $] >= 5.013004;
+ skipall "threads $t_v required to test thread safety"
+                                              unless eval "use threads $t_v; 1";
 }
 
 use Test::More;
