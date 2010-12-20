@@ -1,5 +1,18 @@
 Revision history for Scope-Upper
 
+0.13    2010-12-20 01:00 UTC
+        + Fix : [RT #61904] : Stack corruption when using unwind() under
+                Devel::NYTProf.
+                Thanks Sergey Aleynikov for contributing a fix.
+        + Fix : [RT #63378] : Compatibility with perl 5.13.8.
+                Thanks Andreas J. König for bisecting the issue.
+        + Tst : Threads tests are now only run on perl 5.13.4 and higher.
+                They could segfault randomly because of what seems to be an
+                internal bug of Perl, which has been addressed in 5.13.4.
+                There is also an environment variable that allows you to
+                forcefully run those tests, but it should be set only for
+                author testing and not for end users.
+
 0.12    2010-05-19 00:45 UTC
         + Fix : Compatibility with perl 5.13.
         + Fix : Test failures with perl 5.8.0.
