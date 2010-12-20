@@ -167,8 +167,10 @@ START_MY_CXT
 # define SU_SAVE_GP_SIZE 6
 #elif !SU_HAS_PERL(5, 13, 0) || (SU_RELEASE && SU_HAS_PERL_EXACT(5, 13, 0))
 # define SU_SAVE_GP_SIZE 3
-#else
+#elif !SU_HAS_PERL(5, 13, 8)
 # define SU_SAVE_GP_SIZE 4
+#else
+# define SU_SAVE_GP_SIZE 3
 #endif
 
 #ifndef SvCANEXISTDELETE
