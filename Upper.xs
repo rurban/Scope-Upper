@@ -48,6 +48,10 @@
 # define SvREFCNT_inc_simple_void(sv) SvREFCNT_inc(sv)
 #endif
 
+#ifndef GvCV_set
+# define GvCV_set(G, C) (GvCV(G) = (C))
+#endif
+
 #ifndef HvNAME_get
 # define HvNAME_get(H) HvNAME(H)
 #endif
@@ -546,7 +550,7 @@ STATIC void su_localize(pTHX_ void *ud_) {
    break;
   case SVt_PVCV:
    SAVESPTR(GvCV(gv));
-   GvCV(gv) = NULL;
+   GvCV_set(gv, NULL);
    break;
   default:
    gv = (GV *) save_scalar(gv);
