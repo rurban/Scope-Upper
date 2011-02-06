@@ -3,7 +3,8 @@
 use strict;
 use warnings;
 
-use Test::More 'no_plan';
+use lib 't/lib';
+use Test::Leaner 'no_plan';
 
 use Scope::Upper qw/unwind UP HERE/;
 

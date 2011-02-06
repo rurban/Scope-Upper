@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 
-use Test::More 'no_plan'; 
+use lib 't/lib';
+use Test::Leaner 'no_plan';
 
 use Scope::Upper qw/reap UP HERE/;
 
-use lib 't/lib';
 use Scope::Upper::TestGenerator;
 
 local $Scope::Upper::TestGenerator::call = sub {
@@ -39,7 +39,7 @@ $testcase
 DIAG
    undef $testcase;
   }
-  Test::More::is($a, $b, $desc);
+  Test::Leaner::is($a, $b, $desc);
  }
 }
 

@@ -43,3 +43,4 @@ t/92-pod-coverage.t
 t/95-portability-files.t
 t/99-kwalitee.t
 t/lib/Scope/Upper/TestGenerator.pm
+t/lib/Test/Leaner.pm
