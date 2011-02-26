@@ -10,11 +10,11 @@ Test::Leaner - A slimmer Test::More for when you favor performance over complete
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 SYNOPSIS
 
@@ -72,7 +72,11 @@ C<use_ok>, C<require_ok>, C<can_ok>, C<isa_ok>, C<new_ok>, C<subtest>, C<explain
 
 use Exporter ();
 
+my $main_process;
+
 BEGIN {
+ $main_process = $$;
+
  if ($] >= 5.008 and $INC{'threads.pm'}) {
   my $use_ithreads = do {
    require Config;
@@ -759,7 +763,7 @@ sub BAIL_OUT {
 }
 
 END {
- unless ($?) {
+ if ($main_process == $$ and not $?) {
   lock $plan if THREADSAFE;
 
   if (defined $plan) {
