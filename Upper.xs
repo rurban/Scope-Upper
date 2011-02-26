@@ -316,6 +316,45 @@ STATIC void su_save_helem(pTHX_ HV *hv, SV *keysv, SV *val) {
  }
 }
 
+/* ... Saving code slots from a glob ....................................... */
+
+#if SU_HAS_PERL(5, 13, 10)
+
+/* Since perl 5.13.10, GvCV() is only a rvalue so we no longer can store a
+ * pointer to the gvcv member of the gv. */
+
+typedef struct {
+ GV *gv;
+ CV *old_cv;
+} su_save_gvcv_ud;
+
+STATIC void su_restore_gvcv(pTHX_ void *ud_) {
+ su_save_gvcv_ud *ud = ud_;
+
+ GvCV_set(ud->gv, ud->old_cv);
+
+ Safefree(ud);
+}
+
+STATIC void su_save_gvcv(pTHX_ GV *gv) {
+#define su_save_gvcv(gv) su_save_gvcv(aTHX_ (gv))
+ su_save_gvcv_ud *ud;
+
+ Newx(ud, 1, su_save_gvcv_ud);
+ ud->gv     = gv;
+ ud->old_cv = GvCV(gv);
+
+ GvCV_set(gv, NULL);
+
+ SAVEDESTRUCTOR_X(su_restore_gvcv, ud);
+}
+
+#else
+
+#define su_save_gvcv(gv) SAVESPTR(GvCV(gv)), GvCV_set((gv), NULL)
+
+#endif
+
 /* --- Actions ------------------------------------------------------------- */
 
 typedef struct {
@@ -549,8 +588,7 @@ STATIC void su_localize(pTHX_ void *ud_) {
    save_gp(gv, 1); /* hide previous entry in symtab */
    break;
   case SVt_PVCV:
-   SAVESPTR(GvCV(gv));
-   GvCV_set(gv, NULL);
+   su_save_gvcv(gv);
    break;
   default:
    gv = (GV *) save_scalar(gv);

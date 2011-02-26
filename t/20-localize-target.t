@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 50 + 4;
+use Test::More tests => 61 + 4;
 
 use Scope::Upper qw/localize UP HERE/;
 
@@ -253,6 +253,45 @@ my $xh = { a => 5, c => 7 };
   is foo(), 9, 'localize "&foo", sub { 8 } => UP [not yet]';
  }
  is foo(), 8, 'localize "&foo", sub { 8 } => UP [ok]';
+}
+
+{
+ local *foo = sub { 'a' };
+ {
+  {
+   localize *foo, sub { 'b' } => UP;
+   is foo(), 'a', 'localize *foo, sub { "b" } => UP [not yet 1]';
+   {
+    no warnings 'redefine';
+    local *foo = sub { 'c' };
+    is foo(), 'c', 'localize *foo, sub { "b" } => UP [localized 1]';
+   }
+   is foo(), 'a', 'localize *foo, sub { "b" } => UP [not yet 2]';
+  }
+  is foo(), 'b', 'localize *foo, sub { "b" } => UP [ok 1]';
+  {
+   no warnings 'redefine';
+   local *foo = sub { 'd' };
+   is foo(), 'd', 'localize *foo, sub { "b" } => UP [localized 2]';
+  }
+  is foo(), 'b', 'localize *foo, sub { "b" } => UP [ok 2]';
+ }
+ is foo(), 'a', 'localize *foo, sub { "b" } => UP [end]';
+}
+
+{
+ local *foo = sub { 'x' };
+ {
+  {
+   localize *foo, sub { 'y' } => UP;
+   is foo(), 'x', 'localize *foo, sub { "y" } => UP [not yet]';
+  }
+  is foo(), 'y', 'localize *foo, sub { "y" } => UP [ok]';
+  no warnings 'redefine';
+  *foo = sub { 'z' };
+  is foo(), 'z', 'localize *foo, sub { "y" } => UP [replaced]';
+ }
+ is foo(), 'x', 'localize *foo, sub { "y" } => UP [end]';
 }
 
 # Invalid
