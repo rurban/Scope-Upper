@@ -1,5 +1,11 @@
 Revision history for Scope-Upper
 
+0.14    2011-02-27 00:00 UTC
+        + Fix : [RT #64997] : Compatibility with perl 5.13.10.
+                Thanks Dave Mitchell for the notice.
+        + Tst : Lengthy tests have been ported to Test::Leaner, making the
+                whole test suite about 50% faster.
+
 0.13    2010-12-20 01:00 UTC
         + Fix : [RT #61904] : Stack corruption when using unwind() under
                 Devel::NYTProf.
