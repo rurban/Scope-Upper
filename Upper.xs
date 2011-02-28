@@ -165,7 +165,7 @@ START_MY_CXT
 # define SU_SAVE_HELEM_OR_HDELETE_SIZE SU_SAVE_HELEM_SIZE
 #endif
 
-#define SU_SAVE_SPTR_SIZE 3
+#define SU_SAVE_GVCV_SIZE SU_SAVE_DESTRUCTOR_SIZE
 
 #if !SU_HAS_PERL(5, 8, 9)
 # define SU_SAVE_GP_SIZE 6
@@ -318,10 +318,9 @@ STATIC void su_save_helem(pTHX_ HV *hv, SV *keysv, SV *val) {
 
 /* ... Saving code slots from a glob ....................................... */
 
-#if SU_HAS_PERL(5, 13, 10)
-
-/* Since perl 5.13.10, GvCV() is only a rvalue so we no longer can store a
- * pointer to the gvcv member of the gv. */
+#if !SU_HAS_PERL(5, 10, 0) && !defined(mro_method_changed_in)
+# define mro_method_changed_in(G) PL_sub_generation++
+#endif
 
 typedef struct {
  GV *gv;
@@ -330,14 +329,17 @@ typedef struct {
 
 STATIC void su_restore_gvcv(pTHX_ void *ud_) {
  su_save_gvcv_ud *ud = ud_;
+ GV              *gv = ud->gv;
 
- GvCV_set(ud->gv, ud->old_cv);
+ GvCV_set(gv, ud->old_cv);
+ GvCVGEN(gv) = 0;
+ mro_method_changed_in(GvSTASH(gv));
 
  Safefree(ud);
 }
 
 STATIC void su_save_gvcv(pTHX_ GV *gv) {
-#define su_save_gvcv(gv) su_save_gvcv(aTHX_ (gv))
+#define su_save_gvcv(G) su_save_gvcv(aTHX_ (G))
  su_save_gvcv_ud *ud;
 
  Newx(ud, 1, su_save_gvcv_ud);
@@ -345,15 +347,11 @@ STATIC void su_save_gvcv(pTHX_ GV *gv) {
  ud->old_cv = GvCV(gv);
 
  GvCV_set(gv, NULL);
+ GvCVGEN(gv) = 0;
+ mro_method_changed_in(GvSTASH(gv));
 
  SAVEDESTRUCTOR_X(su_restore_gvcv, ud);
 }
-
-#else
-
-#define su_save_gvcv(gv) SAVESPTR(GvCV(gv)), GvCV_set((gv), NULL)
-
-#endif
 
 /* --- Actions ------------------------------------------------------------- */
 
@@ -520,7 +518,7 @@ STATIC I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *el
    deref = 0;
    break;
   case SVt_PVCV:
-   size  = SU_SAVE_SPTR_SIZE;
+   size  = SU_SAVE_GVCV_SIZE;
    deref = 0;
    break;
   default:

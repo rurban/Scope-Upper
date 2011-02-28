@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 44 + 4;
+use Test::More tests => 53 + 4;
 
 use Scope::Upper qw/localize_delete UP HERE/;
 
@@ -162,7 +162,7 @@ our %h;
                        'localize_delete "%nonexistent", anything => HERE [end]';
 }
 
-# Others
+# Scalars
 
 our $x = 1;
 {
@@ -180,6 +180,8 @@ is $x, 1, 'localize_delete "$x", anything => HERE [end]';
  is eval('${*nonexistent{SCALAR}}'), undef,
                        'localize_delete "$nonexistent", anything => HERE [end]';
 }
+
+# Code
 
 sub x { 1 };
 {
@@ -205,6 +207,50 @@ is x(), 1, 'localize_delete "&x", anything => HERE [end]';
 }
 is x(), 1, 'localize_delete *x, anything => HERE [end 1]';
 is $x,  1, 'localize_delete *x, anything => HERE [end 2]';
+
+sub X::foo { 'X::foo' }
+
+{
+ {
+  {
+   localize_delete '&X::foo', undef => UP;
+   is(X->foo(), 'X::foo', 'localize_delete "&X::foo", undef => UP [not yet X]');
+  }
+  ok(!X->can('foo'), 'localize_delete "&X::foo", undef => UP [ok X]');
+ }
+ is(X->foo(), 'X::foo', 'localize_delete "&X::foo", undef => UP [end X]');
+}
+
+@Y::ISA = 'X';
+
+{
+ {
+  {
+   localize_delete '&X::foo', undef => UP;
+   is(Y->foo(), 'X::foo', 'localize_delete "&X::foo", undef => UP [not yet Y]');
+  }
+  ok(!Y->can('foo'), 'localize_delete "&X::foo", undef => UP [ok Y]');
+ }
+ is(Y->foo(), 'X::foo', 'localize_delete "&X::foo", undef => UP [end Y]');
+}
+
+
+{
+ local *Y::foo = sub { 'Y::foo' };
+ {
+  {
+   localize_delete '&Y::foo', undef => UP;
+   is(Y->foo(), 'Y::foo', 'localize_delete "&Y::foo", undef => UP [not yet]');
+  }
+  is(Y->foo(), 'X::foo', 'localize_delete "&Y::foo", undef => UP [ok]');
+ }
+ is(Y->foo(), 'Y::foo', 'localize_delete "&Y::foo", undef => UP [end]');
+}
+
+{
+ # Prevent 'only once' warnings
+ local *Y::foo = *Y::foo;
+}
 
 # Invalid
 
