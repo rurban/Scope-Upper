@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 53 + 4;
 
-use Scope::Upper qw/localize_delete UP HERE/;
+use Scope::Upper qw<localize_delete UP HERE>;
 
 # Arrays
 

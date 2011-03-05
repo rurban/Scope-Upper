@@ -8,7 +8,7 @@ BEGIN { $n = 1000; }
 
 use Test::More tests => $n;
 
-use Scope::Upper qw/reap UP/;
+use Scope::Upper qw<reap UP>;
 
 my $count;
 

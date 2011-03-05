@@ -6,7 +6,7 @@ use warnings;
 use lib 't/lib';
 use Test::Leaner 'no_plan';
 
-use Scope::Upper qw/localize_elem UP HERE/;
+use Scope::Upper qw<localize_elem UP HERE>;
 
 use Scope::Upper::TestGenerator;
 

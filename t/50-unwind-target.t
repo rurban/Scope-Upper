@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 4;
 
-use Scope::Upper qw/unwind/;
+use Scope::Upper qw<unwind>;
 
 my @res;
 

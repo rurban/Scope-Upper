@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Scope::Upper qw/localize_elem UP HERE/;
+use Scope::Upper qw<localize_elem UP HERE>;
 
 use Test::More tests => 8;
 

@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 
-use Scope::Upper qw/localize UP HERE/;
+use Scope::Upper qw<localize UP HERE>;
 
 use Test::More tests => 5;
 
-my @a = qw/a b c/;
+my @a = qw<a b c>;
 
 {
  local $" = '';

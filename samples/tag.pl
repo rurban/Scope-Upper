@@ -7,7 +7,7 @@ use blib;
 
 package Scope;
 
-use Scope::Upper qw/reap localize localize_elem localize_delete :words/;
+use Scope::Upper qw<reap localize localize_elem localize_delete :words>;
 
 sub new {
  my ($class, $name) = @_;

@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 13;
 
-use Scope::Upper qw/unwind SCOPE/;
+use Scope::Upper qw<unwind SCOPE>;
 
 my ($l1, $l2);
 
@@ -46,20 +46,20 @@ is_deeply [ a() ], [ 1 .. 12, 'in c', 'in b', 'in a' ],
 
 $l1 = 0;
 $l2 = 1;
-is_deeply [ a() ], [ 1 .. 12, qw/eval from the sub c/, 'in b', 'in a' ],
+is_deeply [ a() ], [ 1 .. 12, qw<eval from the sub c>, 'in b', 'in a' ],
           'l1=0, l2=1';
 
 $l1 = 0;
 $l2 = 2;
-is_deeply [ a() ], [ qw/eval from the sub c/, 'in a' ],
+is_deeply [ a() ], [ qw<eval from the sub c>, 'in a' ],
           'l1=0, l2=2';
 
 $l1 = 4;
 $l2 = 999;
-is_deeply [ a() ], [ 1 .. 12, qw/from the sub c/, 'in b', 'in a' ],
+is_deeply [ a() ], [ 1 .. 12, qw<from the sub c>, 'in b', 'in a' ],
           'l1=4, l2=?';
 
 $l1 = 5;
 $l2 = 999;
-is_deeply [ a() ], [ qw/from the sub c/, 'in a' ],
+is_deeply [ a() ], [ qw<from the sub c>, 'in a' ],
           'l1=5, l2=?';

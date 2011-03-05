@@ -8,7 +8,7 @@ BEGIN { $n = 1000; }
 
 use Test::More tests => 3;
 
-use Scope::Upper qw/localize UP/;
+use Scope::Upper qw<localize UP>;
 
 our $x = 0;
 our $z = $n;

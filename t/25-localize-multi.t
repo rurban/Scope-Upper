@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 10 + 5 + 6;
 
-use Scope::Upper qw/localize UP HERE/;
+use Scope::Upper qw<localize UP HERE>;
 
 our $x;
 

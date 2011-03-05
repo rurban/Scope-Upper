@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 8 + 18 + 4 + 8 + 11 + 5 + 17;
 
-use Scope::Upper qw/reap UP HERE/;
+use Scope::Upper qw<reap UP HERE>;
 
 my $x;
 

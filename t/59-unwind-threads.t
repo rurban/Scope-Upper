@@ -9,7 +9,7 @@ sub skipall {
  Test::More::plan(skip_all => $msg);
 }
 
-use Config qw/%Config/;
+use Config qw<%Config>;
 
 BEGIN {
  my $force = $ENV{PERL_SCOPE_UPPER_TEST_THREADS} ? 1 : !1;
@@ -24,7 +24,7 @@ BEGIN {
 
 use Test::More;
 
-use Scope::Upper qw/unwind UP SU_THREADSAFE/;
+use Scope::Upper qw<unwind UP SU_THREADSAFE>;
 
 my $num;
 

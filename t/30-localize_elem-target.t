@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 25 + 12;
 
-use Scope::Upper qw/localize_elem UP HERE/;
+use Scope::Upper qw<localize_elem UP HERE>;
 
 # Arrays
 

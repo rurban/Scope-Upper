@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 41 + 30 + 4 * 7;
 
-use Scope::Upper qw/reap UP HERE/;
+use Scope::Upper qw<reap UP HERE>;
 
 our ($x, $y);
 

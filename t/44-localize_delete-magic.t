@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Scope::Upper qw/localize_delete UP HERE/;
+use Scope::Upper qw<localize_delete UP HERE>;
 
 use Test::More tests => 9;
 

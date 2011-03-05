@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 19;
 
-use Scope::Upper qw/want_at UP HERE/;
+use Scope::Upper qw<want_at UP HERE>;
 
 sub check {
  my ($w, $exp, $desc) = @_;

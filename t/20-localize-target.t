@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 70 + 4;
 
-use Scope::Upper qw/localize UP HERE/;
+use Scope::Upper qw<localize UP HERE>;
 
 # Scalars
 

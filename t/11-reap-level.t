@@ -6,7 +6,7 @@ use warnings;
 use lib 't/lib';
 use Test::Leaner 'no_plan';
 
-use Scope::Upper qw/reap UP HERE/;
+use Scope::Upper qw<reap UP HERE>;
 
 use Scope::Upper::TestGenerator;
 

@@ -13,7 +13,7 @@ BEGIN {
  }
 }
 
-use Scope::Upper qw/:words/;
+use Scope::Upper qw<:words>;
 
 # This test is for internal use only and doesn't imply any kind of future
 # compatibility on what the words should actually return.

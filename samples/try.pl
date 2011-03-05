@@ -5,7 +5,7 @@ use warnings;
 
 use blib;
 
-use Scope::Upper qw/unwind want_at :words/;
+use Scope::Upper qw<unwind want_at :words>;
 
 sub try (&) {
  my @result = shift->();
@@ -15,13 +15,13 @@ sub try (&) {
 
 sub zap {
  try {
-  my @things = qw/a b c/;
+  my @things = qw<a b c>;
   return @things; # returns to try() and then outside zap()
  };
  print "NOT REACHED\n";
 }
 
-my @stuff = zap(); # @stuff contains qw/a b c/
+my @stuff = zap(); # @stuff contains qw<a b c>
 my $stuff = zap(); # $stuff contains 3
 
 print "zap() returns @stuff in list context and $stuff in scalar context\n";

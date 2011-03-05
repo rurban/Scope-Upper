@@ -6,7 +6,7 @@ use warnings;
 use lib 't/lib';
 use Test::Leaner 'no_plan';
 
-use Scope::Upper qw/unwind UP HERE/;
+use Scope::Upper qw<unwind UP HERE>;
 
 our ($call, @args, $args);
 
@@ -88,7 +88,7 @@ DIAG
  }
 }
 
-for ([ ], [ 'A' ], [ qw/B C/ ]) {
+for ([ ], [ 'A' ], [ qw<B C> ]) {
  @args = @$_;
  $args = '(' . join(', ', map "'$_'", @args) . ')';
  runtests 0, 0;

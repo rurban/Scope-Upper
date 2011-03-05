@@ -24,7 +24,7 @@ L</reap>, L</localize>, L</localize_elem>, L</localize_delete> and L</WORDS> :
 
     package Scope;
 
-    use Scope::Upper qw/reap localize localize_elem localize_delete :words/;
+    use Scope::Upper qw<reap localize localize_elem localize_delete :words>;
 
     sub new {
      my ($class, $name) = @_;
@@ -87,7 +87,7 @@ L</unwind> and L</want_at> :
 
     package Try;
 
-    use Scope::Upper qw/unwind want_at :words/;
+    use Scope::Upper qw<unwind want_at :words>;
 
     sub try (&) {
      my @result = shift->();
@@ -99,14 +99,14 @@ L</unwind> and L</want_at> :
 
     sub zap {
      try {
-      my @things = qw/a b c/;
+      my @things = qw<a b c>;
       return @things; # returns to try() and then outside zap()
       # not reached
      };
      # not reached
     }
 
-    my @stuff = zap(); # @stuff contains qw/a b c/
+    my @stuff = zap(); # @stuff contains qw<a b c>
     my $stuff = zap(); # $stuff contains 3
 
 =head1 DESCRIPTION
@@ -380,13 +380,13 @@ Same goes for the words L</TOP>, L</HERE>, L</UP>, L</SUB>, L</EVAL>, L</SCOPE> 
 
 =cut
 
-use base qw/Exporter/;
+use base qw<Exporter>;
 
 our @EXPORT      = ();
 our %EXPORT_TAGS = (
- funcs  => [ qw/reap localize localize_elem localize_delete unwind want_at/ ],
- words  => [ qw/TOP HERE UP SUB EVAL SCOPE CALLER/ ],
- consts => [ qw/SU_THREADSAFE/ ],
+ funcs  => [ qw<reap localize localize_elem localize_delete unwind want_at> ],
+ words  => [ qw<TOP HERE UP SUB EVAL SCOPE CALLER> ],
+ consts => [ qw<SU_THREADSAFE> ],
 );
 our @EXPORT_OK   = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];

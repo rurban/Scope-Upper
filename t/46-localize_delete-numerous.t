@@ -8,7 +8,7 @@ BEGIN { $n = 1000; }
 
 use Test::More tests => 3;
 
-use Scope::Upper qw/localize_delete UP/;
+use Scope::Upper qw<localize_delete UP>;
 
 our @A = (1 .. $n);
 
