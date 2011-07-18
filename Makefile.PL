@@ -15,13 +15,13 @@ for ($pl, $desc) {
 my @DEFINES;
 
 print "Checking if this is an official release of perl... ";
-my $is_release = ($] < 5.011) ? (defined($pl) || defined($desc) ? 0 : 1)
-                              : (defined($desc)                 ? 0 : 1);
+my $is_release = ("$]" < 5.011) ? (defined($pl) || defined($desc) ? 0 : 1)
+                                : (defined($desc)                 ? 0 : 1);
 push @DEFINES, "-DSU_RELEASE=$is_release";
 print $is_release  ? "yes\n" : "no\n";
 
 # Threads, Windows and 5.8.x don't seem to be best friends
-if ($^O eq 'MSWin32' && $^V lt v5.9.0) {
+if ($^O eq 'MSWin32' && "$]" < 5.009) {
  push @DEFINES, '-DSU_MULTIPLICITY=0';
 }
 

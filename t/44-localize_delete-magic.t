@@ -54,7 +54,8 @@ our @a;
 
 SKIP:
 {
- skip '$NEGATIVE_INDICES has no special meaning on 5.8.0 and older' => 2 if $] < 5.008_001;
+ skip '$NEGATIVE_INDICES has no special meaning on 5.8.0 and older' => 2
+                                                             if "$]" < 5.008001;
  local $Scope::Upper::Test::TiedArray::NEGATIVE_INDICES = 1;
  local @a;
  tie @a, 'Scope::Upper::Test::TiedArray';

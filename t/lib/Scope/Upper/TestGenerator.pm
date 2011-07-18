@@ -26,7 +26,7 @@ my @blocks = (
 );
 
 sub import {
- if ($] >= 5.010001) {
+ if ("$]" >= 5.010001) {
   push @blocks, [ 'given (1) {', '}' ];
   require feature;
   feature->import('switch');
