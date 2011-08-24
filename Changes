@@ -1,5 +1,9 @@
 Revision history for Scope-Upper
 
+0.15    2011-08-24 14:20 UTC
+        + Fix : Localizing subroutines in an higher scope will now correctly
+                update the method cache.
+
 0.14    2011-02-27 00:00 UTC
         + Fix : [RT #64997] : Compatibility with perl 5.13.10.
                 Thanks Dave Mitchell for the notice.

@@ -2,14 +2,14 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.14
+    Version 0.15
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
 
         package Scope;
 
-        use Scope::Upper qw/reap localize localize_elem localize_delete :words/;
+        use Scope::Upper qw<reap localize localize_elem localize_delete :words>;
 
         sub new {
          my ($class, $name) = @_;
@@ -72,7 +72,7 @@ SYNOPSIS
 
         package Try;
 
-        use Scope::Upper qw/unwind want_at :words/;
+        use Scope::Upper qw<unwind want_at :words>;
 
         sub try (&) {
          my @result = shift->();
@@ -84,14 +84,14 @@ SYNOPSIS
 
         sub zap {
          try {
-          my @things = qw/a b c/;
+          my @things = qw<a b c>;
           return @things; # returns to try() and then outside zap()
           # not reached
          };
          # not reached
         }
 
-        my @stuff = zap(); # @stuff contains qw/a b c/
+        my @stuff = zap(); # @stuff contains qw<a b c>
         my $stuff = zap(); # $stuff contains 3
 
 DESCRIPTION
