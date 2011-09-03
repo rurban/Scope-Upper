@@ -6,6 +6,7 @@ Makefile.PL
 README
 Upper.xs
 lib/Scope/Upper.pm
+samples/bench_uplevel.pl
 samples/tag.pl
 samples/try.pl
 t/00-load.t
@@ -37,8 +38,18 @@ t/50-unwind-target.t
 t/55-unwind-multi.t
 t/56-unwind-context.t
 t/59-unwind-threads.t
+t/60-uplevel-target.t
+t/61-uplevel-args.t
+t/62-uplevel-return.t
+t/63-uplevel-ctl.t
+t/64-uplevel-caller.t
+t/65-uplevel-multi.t
+t/66-uplevel-context.t
+t/67-uplevel-scope.t
+t/69-uplevel-threads.t
 t/81-stress-level.t
 t/85-stress-unwind.t
+t/86-stress-uplevel.t
 t/91-pod.t
 t/92-pod-coverage.t
 t/95-portability-files.t

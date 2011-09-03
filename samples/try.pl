@@ -25,3 +25,22 @@ my @stuff = zap(); # @stuff contains qw<a b c>
 my $stuff = zap(); # $stuff contains 3
 
 print "zap() returns @stuff in list context and $stuff in scalar context\n";
+
+{
+ package Uplevel;
+
+ use Scope::Upper qw<uplevel CALLER>;
+
+ sub target {
+  faker(@_);
+ }
+
+ sub faker {
+  uplevel {
+   my $sub = (caller 0)[3];
+   print "$_[0] from $sub()\n";
+  } @_ => CALLER(1);
+ }
+
+ target('hello'); # "hello from Uplevel::target()"
+}

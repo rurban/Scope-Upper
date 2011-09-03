@@ -109,6 +109,25 @@ L</unwind> and L</want_at> :
     my @stuff = zap(); # @stuff contains qw<a b c>
     my $stuff = zap(); # $stuff contains 3
 
+L</uplevel> :
+
+    package Uplevel;
+
+    use Scope::Upper qw<uplevel CALLER>;
+
+    sub target {
+     faker(@_);
+    }
+
+    sub faker {
+     uplevel {
+      my $sub = (caller 0)[3];
+      print "$_[0] from $sub()";
+     } @_ => CALLER(1);
+    }
+
+    target('hello'); # "hello from Uplevel::target()"
+
 =head1 DESCRIPTION
 
 This module lets you defer actions I<at run-time> that will take place when the control flow returns into an upper scope.
@@ -126,7 +145,11 @@ localize variables, array/hash values or deletions of elements in higher context
 
 =item *
 
-return values immediately to an upper level with L</unwind>, and know which context was in use then with L</want_at>.
+return values immediately to an upper level with L</unwind>, and know which context was in use then with L</want_at> ;
+
+=item *
+
+execute a subroutine in the context of an upper subroutine stack frame with L</uplevel>.
 
 =back
 
@@ -261,6 +284,75 @@ The previous example can then be "corrected" :
 
 will rightfully set C<$num> to C<26>.
 
+=head2 C<uplevel $code, @args, $context>
+
+Executes the code reference C<$code> with arguments C<@args> as if it were located at the subroutine stack frame pointed by C<$context>, effectively fooling C<caller> and C<die> into believing that the call actually happened higher in the stack.
+The code is executed in the context of the C<uplevel> call, and what it returns is returned as-is by C<uplevel>.
+
+    sub target {
+     faker(@_);
+    }
+
+    sub faker {
+     uplevel {
+      map { 1 / $_ } @_;
+     } @_ => CALLER(1);
+    }
+
+    my @inverses = target(1, 2, 4); # @inverses contains (0, 0.5, 0.25)
+    my $count    = target(1, 2, 4); # $target is 3
+
+L<Sub::Uplevel> also implements a pure-Perl version of C<uplevel>.
+Both are identical, with the following caveats :
+
+=over 4
+
+=item *
+
+The L<Sub::Uplevel> implementation of C<uplevel> may execute a code reference in the context of B<any> upper stack frame.
+The L<Scope::Upper> version only allows to uplevel to a B<subroutine> stack frame, and will croak if you try to target an C<eval> or a format.
+
+=item *
+
+Exceptions thrown from the code called by this version of C<uplevel> will not be caught by C<eval> blocks between the target frame and the uplevel call, while they will for L<Sub::Uplevel>'s version.
+This means that :
+
+    eval {
+     sub {
+      local $@;
+      eval {
+       sub {
+        uplevel { die 'wut' } CALLER(2); # for Scope::Upper
+        # uplevel(3, sub { die 'wut' })  # for Sub::Uplevel
+       }->();
+      };
+      print "inner block: $@";
+      $@ and exit;
+     }->();
+    };
+    print "outer block: $@";
+
+will print "inner block: wut..." with L<Sub::Uplevel> and "outer block: wut..." with L<Scope::Upper>.
+
+=item *
+
+L<Sub::Uplevel> globally overrides C<CORE::GLOBAL::caller>, while L<Scope::Upper> does not.
+
+=back
+
+A simple wrapper lets you mimic the interface of L<Sub::Uplevel/uplevel> :
+
+    use Scope::Upper;
+
+    sub uplevel {
+     my $frame = shift;
+     my $code  = shift;
+     my $cxt   = Scope::Upper::CALLER($frame);
+     &Scope::Upper::uplevel($code => @_ => $cxt);
+    }
+
+Albeit the three exceptions listed above, it passes all the tests of L<Sub::Uplevel>.
+
 =head1 CONSTANTS
 
 =head2 C<SU_THREADSAFE>
@@ -353,26 +445,29 @@ Where L</localize>, L</localize_elem> and L</localize_delete> act depending on t
     # $cxt = SCOPE(4), UP SUB UP SUB, or UP SUB EVAL, or UP CALLER(2), or TOP
     ...
 
-Where L</unwind> and L</want_at> point to depending on the C<$cxt>:
+Where L</unwind>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
 
     sub {
      eval {
       sub {
        {
-        unwind @things => $cxt;
+        unwind @things => $cxt;     # or uplevel { ... } $cxt;
         ...
        }
        ...
       }->(); # $cxt = SCOPE(0 .. 1), or HERE, or UP, or SUB, or CALLER(0)
       ...
-     };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+     };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1) (*)
      ...
     }->();   # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
     ...
 
+    # (*) Note that uplevel() will croak if you pass that scope frame,
+    #     because it can't target eval scopes.
+
 =head1 EXPORT
 
-The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind> and L</want_at> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
+The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</want_at> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
 
 The constant L</SU_THREADSAFE> is also only exported on request, individually or by the tags C<':consts'> and C<':all'>.
 
@@ -384,7 +479,12 @@ use base qw<Exporter>;
 
 our @EXPORT      = ();
 our %EXPORT_TAGS = (
- funcs  => [ qw<reap localize localize_elem localize_delete unwind want_at> ],
+ funcs  => [ qw<
+  reap
+  localize localize_elem localize_delete
+  unwind want_at
+  uplevel
+ > ],
  words  => [ qw<TOP HERE UP SUB EVAL SCOPE CALLER> ],
  consts => [ qw<SU_THREADSAFE> ],
 );
@@ -434,6 +534,8 @@ L<Continuation::Escape> is a thin wrapper around L<Scope::Upper> that gives you 
 It's easier to use, but it requires you to have control over the scope where you want to return.
 
 L<Scope::Escape>.
+
+L<Sub::Uplevel> provides a pure-Perl implementation of L</uplevel>.
 
 =head1 AUTHOR
 
