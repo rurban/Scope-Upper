@@ -1235,7 +1235,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
    AvFILLp(av) = AvFILLp(cx->blk_sub.argarray);
    Copy(AvARRAY(cx->blk_sub.argarray), AvARRAY(av), AvFILLp(av) + 1, SV *);
    cxstack[cxix].blk_sub.argarray = av;
-  } else if (PL_DBsub) {
+  } else {
    SvREFCNT_inc(cxstack[cxix].blk_sub.argarray);
   }
 
