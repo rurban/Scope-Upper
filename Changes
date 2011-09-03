@@ -1,5 +1,14 @@
 Revision history for Scope-Upper
 
+0.16    2011-09-03 23:00 UTC
+        + Add : uplevel($code, @args, $cxt) executes $code with arguments @args
+                in the upper context pointed by $cxt.
+                This is an XS version of the well-known uplevel() routine from
+                Sub::Uplevel. There are a few differences between both
+                implmentations that are listed in the documentation.
+                The XS version is roughly 10 times faster than the pure-Perl
+                version.
+
 0.15    2011-08-24 14:20 UTC
         + Fix : Localizing subroutines in an higher scope will now correctly
                 update the method cache.
