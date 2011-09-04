@@ -175,6 +175,8 @@ STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
  si->si_stack   = newAV();
  AvREAL_off(si->si_stack);
  si->si_cxstack = NULL;
+ si->si_cxmax   = 0;
+
  sud->si = si;
 
  return sud;
@@ -1170,10 +1172,12 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
 #endif
 
  /* Copy the context stack up to the context just below the target. */
- si->si_cxix  = (cxix < 0) ? -1 : (cxix - 1);
- /* The max size must be at least two so that GROW(max) = (max * 3) / 2 > max */
- si->si_cxmax = (cxix < 4) ?  4 : cxix;
- Renew(si->si_cxstack, si->si_cxmax + 1,     PERL_CONTEXT);
+ si->si_cxix = (cxix < 0) ? -1 : (cxix - 1);
+ if (si->si_cxmax < cxix) {
+  /* The max size must be at least two so that GROW(max) = (max*3)/2 > max */
+  si->si_cxmax = (cxix < 4) ? 4 : cxix;
+  Renew(si->si_cxstack, si->si_cxmax + 1, PERL_CONTEXT);
+ }
  Copy(cur->si_cxstack, si->si_cxstack, cxix, PERL_CONTEXT);
  SU_POISON(si->si_cxstack + cxix, si->si_cxmax + 1 - cxix, PERL_CONTEXT);
 
