@@ -3,9 +3,9 @@
 use strict;
 use warnings;
 
-use Test::More tests => 13;
+use Test::More tests => 13 + 3;
 
-use Scope::Upper qw<unwind SCOPE>;
+use Scope::Upper qw<unwind SCOPE CALLER>;
 
 my ($l1, $l2);
 
@@ -63,3 +63,42 @@ $l1 = 5;
 $l2 = 999;
 is_deeply [ a() ], [ qw<from the sub c>, 'in a' ],
           'l1=5, l2=?';
+
+# Unwinding while unwinding
+{
+ package Scope::Upper::TestGuard;
+
+ sub new {
+  my $class = shift;
+  bless { cb => $_[0] }, $class;
+ }
+
+ sub DESTROY {
+  $_[0]->{cb}->()
+ }
+}
+
+{
+ my $desc = 'unwinding while unwinding';
+ local $@;
+
+ eval {
+  my @res = sub {
+   sub {
+    my $guard = Scope::Upper::TestGuard->new(sub {
+     my @res = sub {
+      sub {
+       unwind @_ => CALLER(1);
+      }->(@_);
+      fail "$desc (second): not reached";
+     }->(qw<a b c>);
+     is_deeply \@res, [ qw<a b c> ], "$desc (second): correct returned values";
+    });
+    unwind @_ => CALLER(1);
+   }->(@_);
+   fail "$desc (first): not reached";
+  }->(qw<y z>);
+  is_deeply \@res, [ qw<y z> ], "$desc (first): correct returned values";
+ };
+ is $@, '', "$desc: did not croak";
+}
