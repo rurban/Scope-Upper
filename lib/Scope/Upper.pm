@@ -310,7 +310,7 @@ Both are identical, with the following caveats :
 =item *
 
 The L<Sub::Uplevel> implementation of C<uplevel> may execute a code reference in the context of B<any> upper stack frame.
-The L<Scope::Upper> version only allows to uplevel to a B<subroutine> stack frame, and will croak if you try to target an C<eval> or a format.
+The L<Scope::Upper> version can only uplevel to a B<subroutine> stack frame, and will croak if you try to target an C<eval> or a format.
 
 =item *
 
