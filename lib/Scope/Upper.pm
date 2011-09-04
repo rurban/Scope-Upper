@@ -149,7 +149,7 @@ return values immediately to an upper level with L</unwind>, and know which cont
 
 =item *
 
-execute a subroutine in the context of an upper subroutine stack frame with L</uplevel>.
+execute a subroutine in the setting of an upper subroutine stack frame with L</uplevel>.
 
 =back
 
@@ -300,7 +300,7 @@ The code is executed in the context of the C<uplevel> call, and what it returns 
     }
 
     my @inverses = target(1, 2, 4); # @inverses contains (0, 0.5, 0.25)
-    my $count    = target(1, 2, 4); # $target is 3
+    my $count    = target(1, 2, 4); # $count is 3
 
 L<Sub::Uplevel> also implements a pure-Perl version of C<uplevel>.
 Both are identical, with the following caveats :
@@ -336,7 +336,7 @@ will print "inner block: wut..." with L<Sub::Uplevel> and "outer block: wut..." 
 
 =item *
 
-L<Sub::Uplevel> globally overrides C<CORE::GLOBAL::caller>, while L<Scope::Upper> does not.
+L<Sub::Uplevel> globally overrides the Perl keyword C<caller>, while L<Scope::Upper> does not.
 
 =back
 
@@ -463,7 +463,7 @@ Where L</unwind>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
     ...
 
     # (*) Note that uplevel() will croak if you pass that scope frame,
-    #     because it can't target eval scopes.
+    #     because it cannot target eval scopes.
 
 =head1 EXPORT
 
@@ -530,12 +530,12 @@ L<perlfunc/local>, L<perlsub/"Temporary Values via local()">.
 
 L<Alias>, L<Hook::Scope>, L<Scope::Guard>, L<Guard>.
 
+L<Sub::Uplevel>.
+
 L<Continuation::Escape> is a thin wrapper around L<Scope::Upper> that gives you a continuation passing style interface to L</unwind>.
 It's easier to use, but it requires you to have control over the scope where you want to return.
 
 L<Scope::Escape>.
-
-L<Sub::Uplevel> provides a pure-Perl implementation of L</uplevel>.
 
 =head1 AUTHOR
 
