@@ -917,8 +917,41 @@ STATIC U8 su_op_gimme_reverse(U8 gimme) {
 #define SU_UPLEVEL_SAVE(f, t) STMT_START { sud->old_##f = PL_##f; PL_##f = (t); } STMT_END
 #define SU_UPLEVEL_RESTORE(f) STMT_START { PL_##f = sud->old_##f; } STMT_END
 
+STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX) {
+#define su_uplevel_storage_new() su_uplevel_storage_new(aTHX)
+ su_uplevel_ud *sud;
+ dMY_CXT;
+
+ sud = MY_CXT.uplevel_storage.root;
+ if (sud) {
+  MY_CXT.uplevel_storage.root = sud->next;
+  MY_CXT.uplevel_storage.count--;
+ } else {
+  sud = su_uplevel_ud_new();
+ }
+
+ return sud;
+}
+
+STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
+#define su_uplevel_storage_delete(S) su_uplevel_storage_delete(aTHX_ (S))
+ dMY_CXT;
+
+ if (MY_CXT.uplevel_storage.count >= SU_UPLEVEL_STORAGE_SIZE) {
+  su_uplevel_ud_delete(sud);
+ } else {
+  sud->next = MY_CXT.uplevel_storage.root;
+  MY_CXT.uplevel_storage.root = sud;
+  MY_CXT.uplevel_storage.count++;
+ }
+}
+
+#define SU_HAS_EXT_MAGIC SU_HAS_PERL(5, 8, 0)
+
+#if SU_HAS_EXT_MAGIC
+
 STATIC int su_uplevel_restore_free(pTHX_ SV *sv, MAGIC *mg) {
- su_uplevel_ud_delete((su_uplevel_ud *) mg->mg_ptr);
+ su_uplevel_storage_delete((su_uplevel_ud *) mg->mg_ptr);
 
  return 0;
 }
@@ -931,11 +964,12 @@ STATIC MGVTBL su_uplevel_restore_vtbl = {
  su_uplevel_restore_free
 };
 
+#endif /* SU_HAS_EXT_MAGIC */
+
 STATIC void su_uplevel_restore(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
  PERL_SI *cur = sud->old_curstackinfo;
  PERL_SI *si  = sud->si;
- dMY_CXT;
 
  /* When we reach this place, POPSUB has already been called (with our fake
   * argarray). GvAV(PL_defgv) points to the savearray (that is, what @_ was
@@ -1030,25 +1064,33 @@ found_it:
  PL_stack_sp   = PL_stack_base + AvFILLp(cur->si_stack);
  PL_stack_max  = PL_stack_base + AvMAX(cur->si_stack);
 
-#if SU_HAS_PERL(5, 8, 0)
- if (MY_CXT.uplevel_storage.count >= SU_UPLEVEL_STORAGE_SIZE) {
-  /* When an exception is thrown from the uplevel'd subroutine,
-   * su_uplevel_restore() may be called by the LEAVE in die_unwind() (renamed
-   * die_where() in more recent perls), which has the sad habit of keeping a
-   * pointer to the current context frame across this call. This means that
-   * we can't free the temporary context stack we used for the uplevel call
-   * right now, or that pointer upwards would point to garbage. We work around
-   * this by attaching the state data to a scalar that will be freed "soon".
-   * This issue has been fixed in perl with commit 8f89e5a9. */
+ /* When an exception is thrown from the uplevel'd subroutine,
+  * su_uplevel_restore() may be called by the LEAVE in die_unwind() (renamed
+  * die_where() in more recent perls), which has the sad habit of keeping a
+  * pointer to the current context frame across this call. This means that we
+  * can't free the temporary context stack we used for the uplevel call right
+  * now, or that pointer upwards would point to garbage. */
+#if SU_HAS_PERL(5, 13, 7)
+ /* This issue has been fixed in perl with commit 8f89e5a9, which was made
+  * public in perl 5.13.7. */
+ su_uplevel_storage_delete(sud);
+#elif SU_HAS_EXT_MAGIC
+ /* If 'ext' magic is available, we work around this by attaching the state
+  * data to a scalar that will be freed "soon". */
+ {
   SV *sv = sv_newmortal();
+
   sv_magicext(sv, NULL, PERL_MAGIC_ext, &su_uplevel_restore_vtbl,
                         (const char *) sud, 0);
- } else {
-#endif
+ }
+#else
+ /* Otherwise, we just enqueue it back in the global storage list. */
+ {
+  dMY_CXT;
+
   sud->next = MY_CXT.uplevel_storage.root;
   MY_CXT.uplevel_storage.root = sud;
   MY_CXT.uplevel_storage.count++;
-#if SU_HAS_PERL(5, 8, 0)
  }
 #endif
 
@@ -1126,7 +1168,6 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  I32  old_mark, new_mark;
  I32  ret;
  dSP;
- dMY_CXT;
 
  ENTER;
 
@@ -1136,14 +1177,8 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  old_mark = AvFILLp(PL_curstack) = PL_stack_sp - PL_stack_base;
  SPAGAIN;
 
- sud = MY_CXT.uplevel_storage.root;
- if (sud) {
-  MY_CXT.uplevel_storage.root = sud->next;
-  MY_CXT.uplevel_storage.count--;
- } else {
-  sud = su_uplevel_ud_new();
- }
- si = sud->si;
+ sud = su_uplevel_storage_new();
+ si  = sud->si;
 
  sud->cxix = cxix;
  sud->died = 1;
