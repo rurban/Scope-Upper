@@ -1008,7 +1008,7 @@ found_it:
     * reset $@ to its proper value. Note that the the call to
     * su_uplevel_restore() must happen before the "reset $@" item of the save
     * stack is processed, as uplevel was called after the localization.
-    * Andrew's change to how $@ was treated, which were mainly integrated
+    * Andrew's changes to how $@ was handled, which were mainly integrated
     * between perl 5.13.0 and 5.13.1, fixed this. */
    if (ERRSV && SvTRUE(ERRSV)) {
     register const PERL_CONTEXT *cx = cxstack + i; /* This is the eval scope */
@@ -1033,7 +1033,7 @@ found_it:
 #if SU_HAS_PERL(5, 8, 0)
  if (MY_CXT.uplevel_storage.count >= SU_UPLEVEL_STORAGE_SIZE) {
   /* When an exception is thrown from the uplevel'd subroutine,
-   * su_uplevel_restore() may be called by the LEAVE in die_unwind() (called
+   * su_uplevel_restore() may be called by the LEAVE in die_unwind() (renamed
    * die_where() in more recent perls), which has the sad habit of keeping a
    * pointer to the current context frame across this call. This means that
    * we can't free the temporary context stack we used for the uplevel call
@@ -1059,9 +1059,10 @@ STATIC CV *su_cv_clone(pTHX_ CV *old_cv) {
 #define su_cv_clone(C) su_cv_clone(aTHX_ (C))
  CV *new_cv;
 
- /* Starting from commit b5c19bd7, cv_clone() has an assert that checks whether
-  * CvDEPTH(CvOUTSIDE(proto)) > 0, so we have to fool cv_clone() with a little
-  * dance. */
+ /* Starting from commit b5c19bd7 (first made public with perl 5.9.0),
+  * cv_clone() has an assert that checks whether CvDEPTH(CvOUTSIDE(proto)) > 0.
+  * If this perl has DEBUGGING enabled, we have to fool cv_clone() with a
+  * little dance. */
 #if defined(DEBUGGING) && SU_HAS_PERL(5, 9, 0)
  I32 old_depth;
  CV *outside = CvOUTSIDE(old_cv);
@@ -1079,12 +1080,12 @@ STATIC CV *su_cv_clone(pTHX_ CV *old_cv) {
  CvDEPTH(outside) = old_depth;
 #endif
 
- /* Starting from perl 5.9 (more exactly commit b5c19bd7), cv_clone() is no
-  * longer able to clone named subs propery. With this commit, pad_findlex()
-  * stores the parent index of a fake pad entry in the NV slot of the
-  * corresponding pad name SV, but only for anonymous subs (since named subs
-  * aren't supposed to be cloned in pure Perl land). To fix this, we just
-  * manually relink the new fake pad entries to the new ones.
+ /* Still from commit b5c19bd7, cv_clone() is no longer able to clone named
+  * subs propery. With this commit, pad_findlex() stores the parent index of a
+  * fake pad entry in the NV slot of the corresponding pad name SV, but only
+  * for anonymous subs (since named subs aren't supposed to be cloned in pure
+  * Perl land). To fix this, we just manually relink the new fake pad entries
+  * to the new ones.
   * For some reason perl 5.8 crashes too without this, supposedly because of
   * other closure bugs. Hence we enable it everywhere. */
  if (!CvCLONE(old_cv)) {
@@ -1192,8 +1193,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
   * reports the right file name, line number and lexical hints. */
  SU_UPLEVEL_SAVE(curcop, cx->blk_oldcop);
  /* Don't reset PL_markstack_ptr, or we would overwrite the mark stack below
-  * this point. */
- /* Don't reset PL_curpm, we want the most recent matches. */
+  * this point. Don't reset PL_curpm either, we want the most recent matches. */
 
  SU_UPLEVEL_SAVE(curstackinfo, si);
  /* If those two are equal, we need to fool POPSTACK_TO() */
@@ -1208,7 +1208,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  CvGV_set(cv, CvGV(target_cv));
 
  PUSHMARK(SP);
- /* Both SP and old_stack_sp points just before the CV. */
+ /* Both SP and old_stack_sp point just before the CV. */
  Copy(old_stack_sp + 2, SP + 1, args, SV *);
  SP += args;
  PUSHs((SV *) cv);
