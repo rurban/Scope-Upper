@@ -142,7 +142,17 @@
 # define MY_CXT_CLONE NOOP
 #endif
 
-/* --- uplevel() data tokens ----------------------------------------------- */
+/* --- unwind() global storage --------------------------------------------- */
+
+typedef struct {
+ I32      cxix;
+ I32      items;
+ SV     **savesp;
+ LISTOP   return_op;
+ OP       proxy_op;
+} su_unwind_storage;
+
+/* --- uplevel() data tokens and global storage ---------------------------- */
 
 typedef struct {
  void *next;
@@ -208,15 +218,9 @@ typedef struct {
 #define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
 
 typedef struct {
- char    *stack_placeholder;
-
- I32      cxix;
- I32      items;
- SV     **savesp;
- LISTOP   return_op;
- OP       proxy_op;
-
- su_uplevel_storage uplevel_storage;
+ char               *stack_placeholder;
+ su_unwind_storage   unwind_storage;
+ su_uplevel_storage  uplevel_storage;
 } my_cxt_t;
 
 START_MY_CXT
@@ -858,9 +862,9 @@ STATIC I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
 STATIC void su_unwind(pTHX_ void *ud_) {
  dMY_CXT;
- I32 cxix    = MY_CXT.cxix;
- I32 items   = MY_CXT.items - 1;
- SV **savesp = MY_CXT.savesp;
+ I32 cxix    = MY_CXT.unwind_storage.cxix;
+ I32 items   = MY_CXT.unwind_storage.items - 1;
+ SV **savesp = MY_CXT.unwind_storage.savesp;
  I32 mark;
 
  PERL_UNUSED_VAR(ud_);
@@ -887,13 +891,13 @@ STATIC void su_unwind(pTHX_ void *ud_) {
                 items, PL_stack_sp - PL_stack_base, *PL_markstack_ptr, mark);
  });
 
- PL_op = (OP *) &(MY_CXT.return_op);
+ PL_op = (OP *) &(MY_CXT.unwind_storage.return_op);
  PL_op = PL_op->op_ppaddr(aTHX);
 
  *PL_markstack_ptr = mark;
 
- MY_CXT.proxy_op.op_next = PL_op;
- PL_op = &(MY_CXT.proxy_op);
+ MY_CXT.unwind_storage.proxy_op.op_next = PL_op;
+ PL_op = &(MY_CXT.unwind_storage.proxy_op);
 }
 
 /* --- Uplevel ------------------------------------------------------------- */
@@ -1334,13 +1338,13 @@ STATIC void su_setup(pTHX) {
  MY_CXT.stack_placeholder = NULL;
 
  /* NewOp() calls calloc() which just zeroes the memory with memset(). */
- Zero(&(MY_CXT.return_op), 1, sizeof(MY_CXT.return_op));
- MY_CXT.return_op.op_type   = OP_RETURN;
- MY_CXT.return_op.op_ppaddr = PL_ppaddr[OP_RETURN];
+ Zero(&(MY_CXT.unwind_storage.return_op), 1, LISTOP);
+ MY_CXT.unwind_storage.return_op.op_type   = OP_RETURN;
+ MY_CXT.unwind_storage.return_op.op_ppaddr = PL_ppaddr[OP_RETURN];
 
- Zero(&(MY_CXT.proxy_op), 1, sizeof(MY_CXT.proxy_op));
- MY_CXT.proxy_op.op_type   = OP_STUB;
- MY_CXT.proxy_op.op_ppaddr = NULL;
+ Zero(&(MY_CXT.unwind_storage.proxy_op), 1, OP);
+ MY_CXT.unwind_storage.proxy_op.op_type   = OP_STUB;
+ MY_CXT.unwind_storage.proxy_op.op_ppaddr = NULL;
 
  MY_CXT.uplevel_storage.root  = NULL;
  MY_CXT.uplevel_storage.count = 0;
@@ -1435,16 +1439,16 @@ XS(XS_Scope__Upper_unwind) {
      continue;
    case CXt_EVAL:
    case CXt_FORMAT:
-    MY_CXT.cxix  = cxix;
-    MY_CXT.items = items;
+    MY_CXT.unwind_storage.cxix  = cxix;
+    MY_CXT.unwind_storage.items = items;
     /* pp_entersub will want to sanitize the stack after returning from there
      * Screw that, we're insane */
     if (GIMME_V == G_SCALAR) {
-     MY_CXT.savesp = PL_stack_sp;
+     MY_CXT.unwind_storage.savesp = PL_stack_sp;
      /* dXSARGS calls POPMARK, so we need to match PL_markstack_ptr[1] */
      PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
     } else {
-     MY_CXT.savesp = NULL;
+     MY_CXT.unwind_storage.savesp = NULL;
     }
     SAVEDESTRUCTOR_X(su_unwind, NULL);
     return;
