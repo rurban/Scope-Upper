@@ -64,7 +64,7 @@
 #endif
 
 #ifndef SvREFCNT_inc_simple_void
-# define SvREFCNT_inc_simple_void(sv) SvREFCNT_inc(sv)
+# define SvREFCNT_inc_simple_void(sv) ((void) SvREFCNT_inc(sv))
 #endif
 
 #ifndef GvCV_set
@@ -952,7 +952,7 @@ STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
 
 #define SU_HAS_EXT_MAGIC SU_HAS_PERL(5, 8, 0)
 
-#if SU_HAS_EXT_MAGIC
+#if SU_HAS_EXT_MAGIC && !SU_HAS_PERL(5, 13, 7)
 
 STATIC int su_uplevel_restore_free(pTHX_ SV *sv, MAGIC *mg) {
  su_uplevel_storage_delete((su_uplevel_ud *) mg->mg_ptr);
@@ -968,7 +968,7 @@ STATIC MGVTBL su_uplevel_restore_vtbl = {
  su_uplevel_restore_free
 };
 
-#endif /* SU_HAS_EXT_MAGIC */
+#endif /* SU_HAS_EXT_MAGIC && !SU_HAS_PERL(5, 13, 7) */
 
 STATIC void su_uplevel_restore(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
@@ -1167,7 +1167,6 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  SV **old_stack_sp;
  CV  *target_cv;
  UNOP sub_op;
- I32  marksize;
  I32  gimme;
  I32  old_mark, new_mark;
  I32  ret;
@@ -1265,7 +1264,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  sud->old_catch = CATCH_GET;
  CATCH_SET(TRUE);
 
- if (PL_op = PL_ppaddr[OP_ENTERSUB](aTHX)) {
+ if ((PL_op = PL_ppaddr[OP_ENTERSUB](aTHX))) {
   if (CxHASARGS(cx) && cx->blk_sub.argarray) {
    /* The call to pp_entersub() has saved the current @_ (in XS terms,
     * GvAV(PL_defgv)) in the savearray member, and has created a new argarray
@@ -1279,7 +1278,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
    Copy(AvARRAY(cx->blk_sub.argarray), AvARRAY(av), AvFILLp(av) + 1, SV *);
    cxstack[cxix].blk_sub.argarray = av;
   } else {
-   SvREFCNT_inc(cxstack[cxix].blk_sub.argarray);
+   SvREFCNT_inc_simple_void(cxstack[cxix].blk_sub.argarray);
   }
 
   CALLRUNOPS(aTHX);
@@ -1315,7 +1314,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
 /* --- Interpreter setup/teardown ------------------------------------------ */
 
 STATIC void su_teardown(pTHX_ void *param) {
- su_uplevel_ud *cur, *prev;
+ su_uplevel_ud *cur;
  dMY_CXT;
 
  cur = MY_CXT.uplevel_storage.root;
