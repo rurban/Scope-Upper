@@ -67,6 +67,10 @@
 # define SvREFCNT_inc_simple_void(sv) ((void) SvREFCNT_inc(sv))
 #endif
 
+#ifndef mPUSHi
+# define mPUSHi(I) PUSHs(sv_2mortal(newSViv(I)))
+#endif
+
 #ifndef GvCV_set
 # define GvCV_set(G, C) (GvCV(G) = (C))
 #endif
@@ -1490,32 +1494,32 @@ PPCODE:
 
 #endif /* SU_THREADSAFE */
 
-SV *
+void
 HERE()
 PROTOTYPE:
 PREINIT:
  I32 cxix = cxstack_ix;
-CODE:
+PPCODE:
  if (PL_DBsub)
   SU_SKIP_DB(cxix);
- RETVAL = newSViv(cxix);
-OUTPUT:
- RETVAL
+ EXTEND(SP, 1);
+ mPUSHi(cxix);
+ XSRETURN(1);
 
-SV *
+void
 UP(...)
 PROTOTYPE: ;$
 PREINIT:
  I32 cxix;
-CODE:
+PPCODE:
  SU_GET_CONTEXT(0, 0);
  if (--cxix < 0)
   cxix = 0;
  if (PL_DBsub)
   SU_SKIP_DB(cxix);
- RETVAL = newSViv(cxix);
-OUTPUT:
- RETVAL
+ EXTEND(SP, 1);
+ mPUSHi(cxix);
+ XSRETURN(1);
 
 void
 SUB(...)
@@ -1524,6 +1528,7 @@ PREINIT:
  I32 cxix;
 PPCODE:
  SU_GET_CONTEXT(0, 0);
+ EXTEND(SP, 1);
  for (; cxix >= 0; --cxix) {
   PERL_CONTEXT *cx = cxstack + cxix;
   switch (CxTYPE(cx)) {
@@ -1532,7 +1537,7 @@ PPCODE:
    case CXt_SUB:
     if (PL_DBsub && cx->blk_sub.cv == GvCV(PL_DBsub))
      continue;
-    ST(0) = sv_2mortal(newSViv(cxix));
+    mPUSHi(cxix);
     XSRETURN(1);
   }
  }
@@ -1545,13 +1550,14 @@ PREINIT:
  I32 cxix;
 PPCODE:
  SU_GET_CONTEXT(0, 0);
+ EXTEND(SP, 1);
  for (; cxix >= 0; --cxix) {
   PERL_CONTEXT *cx = cxstack + cxix;
   switch (CxTYPE(cx)) {
    default:
     continue;
    case CXt_EVAL:
-    ST(0) = sv_2mortal(newSViv(cxix));
+    mPUSHi(cxix);
     XSRETURN(1);
   }
  }
@@ -1578,7 +1584,8 @@ PPCODE:
   if (cxix < 0)
    cxix = 0;
  }
- ST(0) = sv_2mortal(newSViv(cxix));
+ EXTEND(SP, 1);
+ mPUSHi(cxix);
  XSRETURN(1);
 
 void
@@ -1602,7 +1609,8 @@ PPCODE:
   }
  }
 done:
- ST(0) = sv_2mortal(newSViv(cxix));
+ EXTEND(SP, 1);
+ mPUSHi(cxix);
  XSRETURN(1);
 
 void
@@ -1612,6 +1620,7 @@ PREINIT:
  I32 cxix;
 PPCODE:
  SU_GET_CONTEXT(0, 0);
+ EXTEND(SP, 1);
  while (cxix > 0) {
   PERL_CONTEXT *cx = cxstack + cxix--;
   switch (CxTYPE(cx)) {
@@ -1720,6 +1729,7 @@ PPCODE:
      PL_stack_sp--;
      args = items - 2;
     }
+    /* su_uplevel() takes care of extending the stack if needed. */
     ret = su_uplevel((CV *) code, cxix, args);
     XSRETURN(ret);
    default:
