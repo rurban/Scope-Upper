@@ -1185,15 +1185,19 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  SPAGAIN;
 
  sud = su_uplevel_storage_new();
- si  = sud->si;
 
  sud->cxix = cxix;
  sud->died = 1;
  SAVEDESTRUCTOR_X(su_uplevel_restore, sud);
 
- si->si_type = cur->si_type;
- si->si_next = NULL;
- si->si_prev = cur->si_prev;
+ si = sud->si;
+
+ si->si_type    = cur->si_type;
+ si->si_next    = NULL;
+ si->si_prev    = cur->si_prev;
+#ifdef DEBUGGING
+ si->si_markoff = cx->blk_oldmarksp;
+#endif
 
  /* Allocate enough space for all the elements of the original stack up to the
   * target context, plus the forthcoming arguments. */
@@ -1209,10 +1213,6 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  PL_stack_sp   = PL_stack_base + AvFILLp(si->si_stack);
  PL_stack_max  = PL_stack_base + AvMAX(si->si_stack);
  SPAGAIN;
-
-#ifdef DEBUGGING
- si->si_markoff = cx->blk_oldmarksp;
-#endif
 
  /* Copy the context stack up to the context just below the target. */
  si->si_cxix = (cxix < 0) ? -1 : (cxix - 1);
