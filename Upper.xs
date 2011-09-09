@@ -163,6 +163,7 @@ typedef struct {
 
  I32  cxix;
  CV  *target;
+ CV  *callback;
  bool died;
 
  PERL_SI *si;
@@ -174,7 +175,6 @@ typedef struct {
 
  bool old_catch;
  OP  *old_op;
- CV  *cloned_cv;
 } su_uplevel_ud;
 
 STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
@@ -976,8 +976,11 @@ STATIC MGVTBL su_uplevel_restore_vtbl = {
 
 STATIC void su_uplevel_restore(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
+ const PERL_CONTEXT *sub_cx;
  PERL_SI *cur = sud->old_curstackinfo;
  PERL_SI *si  = sud->si;
+
+ sub_cx = cxstack + sud->cxix;
 
  /* When we reach this place, POPSUB has already been called (with our fake
   * argarray). GvAV(PL_defgv) points to the savearray (that is, what @_ was
@@ -985,11 +988,23 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
   * or some empty replacement POPSUB creates when @_ is reified. In both cases
   * we have to destroy it before the context stack is swapped back to its
   * original state. */
- SvREFCNT_dec(cxstack[sud->cxix].blk_sub.argarray);
+ SvREFCNT_dec(sub_cx->blk_sub.argarray);
+
+ /* PUSHSUB was exerted with the original callback, but after calling
+  * pp_entersub() we hijacked the blk_sub.cv member of the fresh sub context
+  * with the renamed CV. Thus POPSUB and LEAVESUB applied to this CV, not the
+  * original. Repair this imbalance right now. */
+ if (!(CvDEPTH(sud->callback) = sub_cx->blk_sub.olddepth))
+  LEAVESUB(sud->callback);
+
+ /* Free the renamed cv. */
+ {
+  CV *renamed_cv = sub_cx->blk_sub.cv;
+  CvDEPTH(renamed_cv) = 0;
+  SvREFCNT_dec(renamed_cv);
+ }
 
  CATCH_SET(sud->old_catch);
-
- SvREFCNT_dec(sud->cloned_cv);
 
  SU_UPLEVEL_RESTORE(op);
 
@@ -1186,8 +1201,9 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
 
  sud = su_uplevel_storage_new();
 
- sud->cxix = cxix;
- sud->died = 1;
+ sud->cxix     = cxix;
+ sud->died     = 1;
+ sud->callback = cv;
  SAVEDESTRUCTOR_X(su_uplevel_restore, sud);
 
  si = sud->si;
@@ -1245,10 +1261,6 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
   sud->old_mainstack = NULL;
  PL_curstack = si->si_stack;
 
- cv = su_cv_clone(cv);
- sud->cloned_cv = cv;
- CvGV_set(cv, CvGV(target_cv));
-
  PUSHMARK(SP);
  /* Both SP and old_stack_sp point just before the CV. */
  Copy(old_stack_sp + 2, SP + 1, args, SV *);
@@ -1269,6 +1281,21 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  CATCH_SET(TRUE);
 
  if ((PL_op = PL_ppaddr[OP_ENTERSUB](aTHX))) {
+  PERL_CONTEXT *sub_cx;
+  CV *renamed_cv;
+
+  renamed_cv = su_cv_clone(cv);
+  CvDEPTH(renamed_cv) = CvDEPTH(cv);
+  CvGV_set(renamed_cv, CvGV(target_cv));
+
+  sub_cx = cxstack + cxstack_ix;
+  sub_cx->blk_sub.cv = renamed_cv;
+  if (!sub_cx->blk_sub.olddepth) {
+   SvREFCNT_inc_simple_void(renamed_cv);
+   SvREFCNT_inc_simple_void(renamed_cv);
+   SAVEFREESV(renamed_cv);
+  }
+
   if (CxHASARGS(cx) && cx->blk_sub.argarray) {
    /* The call to pp_entersub() has saved the current @_ (in XS terms,
     * GvAV(PL_defgv)) in the savearray member, and has created a new argarray

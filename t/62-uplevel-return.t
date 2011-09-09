@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => (10 + 5 + 4) * 2 + 11;
+use Test::More tests => (13 + 5 + 4) * 2 + 1 + 3 + 11;
 
 use Scope::Upper qw<uplevel HERE UP>;
 
@@ -16,13 +16,16 @@ sub check (&$$) {
 
  my $exp_out = [ 'A', map("X$_", @$exp_in), 'Z' ];
 
- my @ret = sub {
-  my @ret = &uplevel($code, HERE);
-  is_deeply \@ret, $exp_in, "$desc: inside";
+ my @ret_in;
+ my @ret_out = sub {
+  @ret_in = &uplevel($code, HERE);
+  is_deeply \@ret_in, $exp_in, "$desc: inside";
   @$exp_out;
  }->('dummy');
 
- is_deeply \@ret, $exp_out, "$desc: outside";
+ is_deeply \@ret_out, $exp_out, "$desc: outside";
+
+ @ret_in;
 }
 
 check { return } [ ], 'empty explicit return';
@@ -56,6 +59,24 @@ check { 2 }        [ 2 ], 'one const scalar implicit return';
 check { return 1 .. 5 } [ 1 .. 5 ],  'five const scalar explicit return';
 
 check { 6 .. 10 }       [ 6 .. 10 ], 'five const scalar implicit return';
+
+check { 'a' .. 'z' }    [ 'a' .. 'z' ], '26 const scalar implicit return';
+
+check { [ qw<A B C> ] } [ [ qw<A B C> ] ],'one array reference implicit return';
+
+my $cb = sub { 123 };
+my ($ret) = check { $cb } [ $cb ], 'one anonymous sub implicit return';
+is $ret->(), $cb->(), 'anonymous sub returned by uplevel still works';
+
+for my $run (1 .. 3) {
+ my ($cb) = sub {
+  uplevel {
+   my $id = 123;
+   sub { ++$id };
+  };
+ }->('dummy');
+ is $cb->(), 124, "near closure returned by uplevel still works";
+}
 
 # Mark
 
