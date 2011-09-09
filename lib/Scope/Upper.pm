@@ -128,6 +128,28 @@ L</uplevel> :
 
     target('hello'); # "hello from Uplevel::target()"
 
+L</uid> and L</validate_uid> :
+
+    use Scope::Upper qw<uid validate_uid>;
+
+    my $uid;
+
+    {
+     $uid = uid();
+     {
+      if ($uid eq uid(UP)) { # yes
+       ...
+      }
+      if (validate_uid($uid)) { # yes
+       ...
+      }
+     }
+    }
+
+    if (validate_uid($uid)) { # no
+     ...
+    }
+
 =head1 DESCRIPTION
 
 This module lets you defer actions I<at run-time> that will take place when the control flow returns into an upper scope.
@@ -149,7 +171,11 @@ return values immediately to an upper level with L</unwind>, and know which cont
 
 =item *
 
-execute a subroutine in the setting of an upper subroutine stack frame with L</uplevel>.
+execute a subroutine in the setting of an upper subroutine stack frame with L</uplevel> ;
+
+=item *
+
+uniquely identify contextes with L</uid> and L</validate_uid>.
 
 =back
 
@@ -353,6 +379,73 @@ A simple wrapper lets you mimic the interface of L<Sub::Uplevel/uplevel> :
 
 Albeit the three exceptions listed above, it passes all the tests of L<Sub::Uplevel>.
 
+=head2 C<uid $context>
+
+Returns an unique identifier (UID) for the context (or dynamic scope) pointed by C<$context>, or for the current context if C<$context> is omitted.
+This UID will only be valid for the life time of the context it represents, and another UID will be generated next time the same scope is executed.
+
+    my $uid;
+
+    {
+     $uid = uid;
+     if ($uid eq uid()) { # yes, this is the same context
+      ...
+     }
+     {
+      if ($uid eq uid()) { # no, we are one scope below
+       ...
+      }
+      if ($uid eq uid(UP)) { # yes, UP points to the same scope as $uid
+       ...
+      }
+     }
+    }
+
+    # $uid is now invalid
+
+    {
+     if ($uid eq uid()) { # no, this is another block
+      ...
+     }
+    }
+
+For example, each loop iteration gets its own UID :
+
+    my %uids;
+
+    for (1 .. 5) {
+     my $uid = uid;
+     $uids{$uid} = $_;
+    }
+
+    # %uids has 5 entries
+
+The UIDs are not guaranteed to be numbers, so you must use the C<eq> operator to compare them.
+
+To check whether a given UID is valid, you can use the L</validate_uid> function.
+
+=head2 C<validate_uid $uid>
+
+Returns true if and only if C<$uid> is the UID of a currently valid context (that is, it designates a scope that is higher than the current one in the call stack).
+
+    my $uid;
+
+    {
+     $uid = uid();
+     if (validate_uid($uid)) { # yes
+      ...
+     }
+     {
+      if (validate_uid($uid)) { # yes
+       ...
+      }
+     }
+    }
+
+    if (validate_uid($uid)) { # no
+     ...
+    }
+
 =head1 CONSTANTS
 
 =head2 C<SU_THREADSAFE>
@@ -484,6 +577,7 @@ our %EXPORT_TAGS = (
   localize localize_elem localize_delete
   unwind want_at
   uplevel
+  uid validate_uid
  > ],
  words  => [ qw<TOP HERE UP SUB EVAL SCOPE CALLER> ],
  consts => [ qw<SU_THREADSAFE> ],

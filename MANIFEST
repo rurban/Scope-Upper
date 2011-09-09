@@ -47,9 +47,14 @@ t/65-uplevel-multi.t
 t/66-uplevel-context.t
 t/67-uplevel-scope.t
 t/69-uplevel-threads.t
+t/70-uid-target.t
+t/74-uid-validate.t
+t/75-uid-uplevel.t
+t/79-uid-threads.t
 t/81-stress-level.t
 t/85-stress-unwind.t
 t/86-stress-uplevel.t
+t/87-stress-uid.t
 t/91-pod.t
 t/92-pod-coverage.t
 t/95-portability-files.t

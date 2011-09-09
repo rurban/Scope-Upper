@@ -179,6 +179,134 @@ STATIC SV *su_newSV_type(pTHX_ svtype t) {
 # define MY_CXT_CLONE NOOP
 #endif
 
+/* --- Unique context ID global storage ------------------------------------ */
+
+/* ... Sequence ID counter ................................................. */
+
+typedef struct {
+ UV     *seqs;
+ STRLEN  size;
+} su_uv_array;
+
+STATIC su_uv_array su_uid_seq_counter;
+
+#ifdef USE_ITHREADS
+
+STATIC perl_mutex su_uid_seq_counter_mutex;
+
+#define SU_LOCK(M)   MUTEX_LOCK(M)
+#define SU_UNLOCK(M) MUTEX_UNLOCK(M)
+
+#else /* USE_ITHREADS */
+
+#define SU_LOCK(M)
+#define SU_UNLOCK(M)
+
+#endif /* !USE_ITHREADS */
+
+STATIC UV su_uid_seq_next(pTHX_ UV depth) {
+#define su_uid_seq_next(D) su_uid_seq_next(aTHX_ (D))
+ UV seq;
+ UV *seqs;
+
+ SU_LOCK(&su_uid_seq_counter_mutex);
+
+ seqs = su_uid_seq_counter.seqs;
+
+ if (depth >= su_uid_seq_counter.size) {
+  UV i;
+
+  seqs = PerlMemShared_realloc(seqs, (depth + 1) * sizeof(UV));
+  for (i = su_uid_seq_counter.size; i <= depth; ++i)
+   seqs[i] = 0;
+
+  su_uid_seq_counter.seqs = seqs;
+  su_uid_seq_counter.size = depth + 1;
+ }
+
+ seq = ++seqs[depth];
+
+ SU_UNLOCK(&su_uid_seq_counter_mutex);
+
+ return seq;
+}
+
+/* ... UID storage ......................................................... */
+
+typedef struct {
+ UV  seq;
+ U32 flags;
+} su_uid;
+
+#define SU_UID_ACTIVE 1
+
+STATIC UV su_uid_depth(pTHX_ I32 cxix) {
+#define su_uid_depth(I) su_uid_depth(aTHX_ (I))
+ const PERL_SI *si;
+ UV depth;
+
+ depth = cxix;
+ for (si = PL_curstackinfo->si_prev; si; si = si->si_prev)
+  depth += si->si_cxix + 1;
+
+ return depth;
+}
+
+typedef struct {
+ su_uid **map;
+ STRLEN   used;
+ STRLEN   alloc;
+} su_uid_storage;
+
+STATIC void su_uid_storage_dup(pTHX_ su_uid_storage *new_cxt, const su_uid_storage *old_cxt, UV max_depth) {
+#define su_uid_storage_dup(N, O, D) su_uid_storage_dup(aTHX_ (N), (O), (D))
+ su_uid **old_map = old_cxt->map;
+
+ if (old_map) {
+  su_uid **new_map = new_cxt->map;
+  STRLEN old_used  = old_cxt->used;
+  STRLEN old_alloc = old_cxt->alloc;
+  STRLEN new_used, new_alloc;
+  STRLEN i;
+
+  new_used = max_depth < old_used ? max_depth : old_used;
+  new_cxt->used = new_used;
+
+  if (new_used <= new_cxt->alloc)
+   new_alloc = new_cxt->alloc;
+  else {
+   new_alloc = new_used;
+   Renew(new_map, new_alloc, su_uid *);
+   for (i = new_cxt->alloc; i < new_alloc; ++i)
+    new_map[i] = NULL;
+   new_cxt->map   = new_map;
+   new_cxt->alloc = new_alloc;
+  }
+
+  for (i = 0; i < new_alloc; ++i) {
+   su_uid *new_uid = new_map[i];
+
+   if (i < new_used) { /* => i < max_depth && i < old_used */
+    su_uid *old_uid = old_map[i];
+
+    if (old_uid && (old_uid->flags & SU_UID_ACTIVE)) {
+     if (!new_uid) {
+      Newx(new_uid, 1, su_uid);
+      new_map[i] = new_uid;
+     }
+     *new_uid = *old_uid;
+     continue;
+    }
+   }
+
+   if (new_uid)
+    new_uid->flags &= ~SU_UID_ACTIVE;
+  }
+ }
+
+ return;
+}
+
 /* --- unwind() global storage --------------------------------------------- */
 
 typedef struct {
@@ -216,6 +344,8 @@ typedef struct {
 #endif
  bool           old_catch;
  OP            *old_op;
+
+ su_uid_storage new_uid_storage, old_uid_storage;
 } su_uplevel_ud;
 
 STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
@@ -225,6 +355,10 @@ STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
 
  Newx(sud, 1, su_uplevel_ud);
  sud->next = NULL;
+
+ sud->new_uid_storage.map   = NULL;
+ sud->new_uid_storage.used  = 0;
+ sud->new_uid_storage.alloc = 0;
 
  Newx(si, 1, PERL_SI);
  si->si_stack   = newAV();
@@ -244,6 +378,18 @@ STATIC void su_uplevel_ud_delete(pTHX_ su_uplevel_ud *sud) {
  Safefree(si->si_cxstack);
  SvREFCNT_dec(si->si_stack);
  Safefree(si);
+
+ if (sud->new_uid_storage.map) {
+  su_uid **map   = sud->new_uid_storage.map;
+  STRLEN   alloc = sud->new_uid_storage.alloc;
+  STRLEN   i;
+
+  for (i = 0; i < alloc; ++i)
+   Safefree(map[i]);
+
+  Safefree(map);
+ }
+
  Safefree(sud);
 
  return;
@@ -267,6 +413,7 @@ typedef struct {
  char               *stack_placeholder;
  su_unwind_storage   unwind_storage;
  su_uplevel_storage  uplevel_storage;
+ su_uid_storage      uid_storage;
 } my_cxt_t;
 
 START_MY_CXT
@@ -967,9 +1114,10 @@ STATIC U8 su_op_gimme_reverse(U8 gimme) {
 #define SU_UPLEVEL_SAVE(f, t) STMT_START { sud->old_##f = PL_##f; PL_##f = (t); } STMT_END
 #define SU_UPLEVEL_RESTORE(f) STMT_START { PL_##f = sud->old_##f; } STMT_END
 
-STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX) {
-#define su_uplevel_storage_new() su_uplevel_storage_new(aTHX)
+STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX_ I32 cxix) {
+#define su_uplevel_storage_new(I) su_uplevel_storage_new(aTHX_ (I))
  su_uplevel_ud *sud;
+ UV depth;
  dMY_CXT;
 
  sud = MY_CXT.uplevel_storage.root;
@@ -983,6 +1131,11 @@ STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX) {
  sud->next = MY_CXT.uplevel_storage.top;
  MY_CXT.uplevel_storage.top = sud;
 
+ depth = su_uid_depth(cxix);
+ su_uid_storage_dup(&sud->new_uid_storage, &MY_CXT.uid_storage, depth);
+ sud->old_uid_storage = MY_CXT.uid_storage;
+ MY_CXT.uid_storage   = sud->new_uid_storage;
+
  return sud;
 }
 
@@ -990,6 +1143,18 @@ STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_storage_delete(S) su_uplevel_storage_delete(aTHX_ (S))
  dMY_CXT;
 
+ sud->new_uid_storage = MY_CXT.uid_storage;
+ MY_CXT.uid_storage   = sud->old_uid_storage;
+ {
+  su_uid **map;
+  UV  i, alloc;
+  map   = sud->new_uid_storage.map;
+  alloc = sud->new_uid_storage.alloc;
+  for (i = 0; i < alloc; ++i) {
+   if (map[i])
+    map[i]->flags &= SU_UID_ACTIVE;
+  }
+ }
  MY_CXT.uplevel_storage.top = sud->next;
 
  if (MY_CXT.uplevel_storage.count >= SU_UPLEVEL_STORAGE_SIZE) {
@@ -1233,6 +1398,9 @@ found_it:
  {
   dMY_CXT;
 
+  sud->new_uid_storage = MY_CXT.uid_storage;
+  MY_CXT.uid_storage   = sud->old_uid_storage;
+
   MY_CXT.uplevel_storage.top  = sud->next;
   sud->next = MY_CXT.uplevel_storage.root;
   MY_CXT.uplevel_storage.root = sud;
@@ -1324,7 +1492,7 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
  old_mark = AvFILLp(PL_curstack) = PL_stack_sp - PL_stack_base;
  SPAGAIN;
 
- sud = su_uplevel_storage_new();
+ sud = su_uplevel_storage_new(cxix);
 
  sud->cxix     = cxix;
  sud->died     = 1;
@@ -1480,11 +1648,165 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
  return ret;
 }
 
+/* --- Unique context ID --------------------------------------------------- */
+
+STATIC su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
+#define su_uid_storage_fetch(D) su_uid_storage_fetch(aTHX_ (D))
+ su_uid **map, *uid;
+ STRLEN alloc;
+ dMY_CXT;
+
+ map   = MY_CXT.uid_storage.map;
+ alloc = MY_CXT.uid_storage.alloc;
+
+ if (depth >= alloc) {
+  STRLEN i;
+
+  Renew(map, depth + 1, su_uid *);
+  for (i = alloc; i <= depth; ++i)
+   map[i] = NULL;
+
+  MY_CXT.uid_storage.map   = map;
+  MY_CXT.uid_storage.alloc = depth + 1;
+ }
+
+ uid = map[depth];
+
+ if (!uid) {
+  Newx(uid, 1, su_uid);
+  uid->seq   = 0;
+  uid->flags = 0;
+  map[depth] = uid;
+ }
+
+ if (depth >= MY_CXT.uid_storage.used)
+  MY_CXT.uid_storage.used = depth + 1;
+
+ return uid;
+}
+
+STATIC int su_uid_storage_check(pTHX_ UV depth, UV seq) {
+#define su_uid_storage_check(D, S) su_uid_storage_check(aTHX_ (D), (S))
+ su_uid *uid;
+ dMY_CXT;
+
+ if (depth >= MY_CXT.uid_storage.used)
+  return 0;
+
+ uid = MY_CXT.uid_storage.map[depth];
+
+ return uid && (uid->seq == seq) && (uid->flags & SU_UID_ACTIVE);
+}
+
+STATIC void su_uid_drop(pTHX_ void *ud_) {
+ su_uid *uid = ud_;
+
+ uid->flags &= ~SU_UID_ACTIVE;
+}
+
+STATIC void su_uid_bump(pTHX_ void *ud_) {
+ su_ud_reap *ud  = ud_;
+
+ SAVEDESTRUCTOR_X(su_uid_drop, ud->cb);
+}
+
+STATIC SV *su_uid_get(pTHX_ I32 cxix) {
+#define su_uid_get(I) su_uid_get(aTHX_ (I))
+ su_uid *uid;
+ SV *uid_sv;
+ UV depth;
+
+ depth = su_uid_depth(cxix);
+ uid   = su_uid_storage_fetch(depth);
+
+ if (!(uid->flags & SU_UID_ACTIVE)) {
+  su_ud_reap *ud;
+
+  uid->seq = su_uid_seq_next(depth);
+  uid->flags |= SU_UID_ACTIVE;
+
+  Newx(ud, 1, su_ud_reap);
+  SU_UD_ORIGIN(ud)  = NULL;
+  SU_UD_HANDLER(ud) = su_uid_bump;
+  ud->cb = (SV *) uid;
+  su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
+ }
+
+ uid_sv = sv_newmortal();
+ sv_setpvf(uid_sv, "%"UVuf"-%"UVuf, depth, uid->seq);
+ return uid_sv;
+}
+
+#ifdef grok_number
+
+#define su_grok_number(S, L, VP) grok_number((S), (L), (VP))
+
+#else /* grok_number */
+
+#define IS_NUMBER_IN_UV 0x1
+
+STATIC int su_grok_number(pTHX_ const char *s, STRLEN len, UV *valuep) {
+#define su_grok_number(S, L, VP) su_grok_number(aTHX_ (S), (L), (VP))
+ STRLEN i;
+ SV *tmpsv;
+
+ /* This crude check should be good enough for a fallback implementation.
+  * Better be too strict than too lax. */
+ for (i = 0; i < len; ++i) {
+  if (!isDIGIT(s[i]))
+   return 0;
+ }
+
+ tmpsv = sv_newmortal();
+ sv_setpvn(tmpsv, s, len);
+ *valuep = sv_2uv(tmpsv);
+
+ return IS_NUMBER_IN_UV;
+}
+
+#endif /* !grok_number */
+
+STATIC int su_uid_validate(pTHX_ SV *uid) {
+#define su_uid_validate(U) su_uid_validate(aTHX_ (U))
+ const char *s;
+ STRLEN len, p = 0;
+ UV depth, seq;
+ int type;
+
+ s = SvPV_const(uid, len);
+
+ while (p < len && s[p] != '-')
+  ++p;
+ if (p >= len)
+  croak("UID contains only one part");
+
+ type = su_grok_number(s, p, &depth);
+ if (type != IS_NUMBER_IN_UV)
+  croak("First UID part is not an unsigned integer");
+
+ ++p; /* Skip '-'. As we used to have p < len, len - (p + 1) >= 0. */
+
+ type = su_grok_number(s + p, len - p, &seq);
+ if (type != IS_NUMBER_IN_UV)
+  croak("Second UID part is not an unsigned integer");
+
+ return su_uid_storage_check(depth, seq);
+}
+
 /* --- Interpreter setup/teardown ------------------------------------------ */
 
 STATIC void su_teardown(pTHX_ void *param) {
  su_uplevel_ud *cur;
+ su_uid **map;
  dMY_CXT;
+
+ map = MY_CXT.uid_storage.map;
+ if (map) {
+  STRLEN i;
+  for (i = 0; i < MY_CXT.uid_storage.used; ++i)
+   Safefree(map[i]);
+  Safefree(map);
+ }
 
  cur = MY_CXT.uplevel_storage.root;
  if (cur) {
@@ -1517,6 +1839,10 @@ STATIC void su_setup(pTHX) {
  MY_CXT.uplevel_storage.top   = NULL;
  MY_CXT.uplevel_storage.root  = NULL;
  MY_CXT.uplevel_storage.count = 0;
+
+ MY_CXT.uid_storage.map   = NULL;
+ MY_CXT.uid_storage.used  = 0;
+ MY_CXT.uid_storage.alloc = 0;
 
  call_atexit(su_teardown, NULL);
 
@@ -1636,6 +1962,11 @@ BOOT:
 {
  HV *stash;
 
+ MUTEX_INIT(&su_uid_seq_counter_mutex);
+
+ su_uid_seq_counter.seqs = NULL;
+ su_uid_seq_counter.size = 0;
+
  stash = gv_stashpv(__PACKAGE__, 1);
  newCONSTSUB(stash, "TOP",           newSViv(0));
  newCONSTSUB(stash, "SU_THREADSAFE", newSVuv(SU_THREADSAFE));
@@ -1650,12 +1981,22 @@ BOOT:
 void
 CLONE(...)
 PROTOTYPE: DISABLE
+PREINIT:
+ su_uid_storage new_cxt;
 PPCODE:
+ {
+  dMY_CXT;
+  new_cxt.map   = NULL;
+  new_cxt.used  = 0;
+  new_cxt.alloc = 0;
+  su_uid_storage_dup(&new_cxt, &MY_CXT.uid_storage, MY_CXT.uid_storage.used);
+ }
  {
   MY_CXT_CLONE;
   MY_CXT.uplevel_storage.top   = NULL;
   MY_CXT.uplevel_storage.root  = NULL;
   MY_CXT.uplevel_storage.count = 0;
+  MY_CXT.uid_storage           = new_cxt;
  }
  XSRETURN(0);
 
@@ -1904,3 +2245,27 @@ PPCODE:
   }
  } while (--cxix >= 0);
  croak("Can't uplevel outside a subroutine");
+
+void
+uid(...)
+PROTOTYPE: ;$
+PREINIT:
+ I32 cxix;
+ SV *uid;
+PPCODE:
+ SU_GET_CONTEXT(0, 0);
+ uid = su_uid_get(cxix);
+ EXTEND(SP, 1);
+ PUSHs(uid);
+ XSRETURN(1);
+
+void
+validate_uid(SV *uid)
+PROTOTYPE: $
+PREINIT:
+ SV *ret;
+PPCODE:
+ ret = su_uid_validate(uid) ? &PL_sv_yes : &PL_sv_no;
+ EXTEND(SP, 1);
+ PUSHs(ret);
+ XSRETURN(1);
