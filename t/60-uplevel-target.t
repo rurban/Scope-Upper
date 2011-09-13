@@ -226,7 +226,9 @@ sub four {
   is $destroyed, 1, "$desc: target is detroyed";
  }
 
- {
+ SKIP: {
+  skip 'This fails even with a plain subroutine call on 5.8.x' => 6
+                                                                if "$]" < 5.009;
   local $@;
   local $destroyed = 0;
   my $desc = 'code destruction';
@@ -237,6 +239,7 @@ sub four {
     ++$lexical;
     is $destroyed, 0, "$desc: not yet 1";
    };
+   $code = bless $code, 'Scope::Upper::TestCodeDestruction';
 
    eval {
     sub {
@@ -251,7 +254,7 @@ sub four {
    is $destroyed, 0,  "$desc: not yet 3";
   };
 
-  is $destroyed, 0,  "$desc: code is destroyed";
+  is $destroyed, 1, "$desc: code is destroyed";
  }
 
  SKIP: {
