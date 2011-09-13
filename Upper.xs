@@ -195,15 +195,17 @@ typedef struct {
  void *next;
 
  I32  cxix;
- CV  *target;
- CV  *callback;
  bool died;
+
+ CV  *target;
+ I32  target_depth;
+
+ CV  *callback;
 
  PERL_SI *si;
  PERL_SI *old_curstackinfo;
  AV      *old_mainstack;
 
- I32  old_depth;
  COP *old_curcop;
 
  bool old_catch;
@@ -1049,7 +1051,7 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
   SU_UPLEVEL_RESTORE(curstackinfo);
 
   if (sud->died) {
-   CV *target_cv = sud->target;
+   CV *target = sud->target;
    I32 levels = 0, i;
 
    /* When we die, the depth of the target CV is not updated because of the
@@ -1060,7 +1062,7 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
     register const PERL_CONTEXT *cx = cxstack + i;
 
     if (CxTYPE(cx) == CXt_SUB) {
-     if (cx->blk_sub.cv == target_cv)
+     if (cx->blk_sub.cv == target)
       ++levels;
     }
    }
@@ -1077,7 +1079,7 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
 
     switch (CxTYPE(cx)) {
      case CXt_SUB:
-      if (cx->blk_sub.cv == target_cv)
+      if (cx->blk_sub.cv == target)
        ++levels;
       break;
      case CXt_EVAL:
@@ -1089,7 +1091,7 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
    }
 
 found_it:
-   CvDEPTH(target_cv) = sud->old_depth - levels;
+   CvDEPTH(target) = sud->target_depth - levels;
    PL_curstackinfo->si_cxix = i - 1;
 
 #if !SU_HAS_PERL(5, 13, 1)
@@ -1256,14 +1258,14 @@ STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
  return cv;
 }
 
-STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
+STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 #define su_uplevel(C, I, A) su_uplevel(aTHX_ (C), (I), (A))
  su_uplevel_ud *sud;
  const PERL_CONTEXT *cx = cxstack + cxix;
  PERL_SI *si;
  PERL_SI *cur = PL_curstackinfo;
  SV **old_stack_sp;
- CV  *target_cv;
+ CV  *target;
  UNOP sub_op;
  I32  gimme;
  I32  old_mark, new_mark;
@@ -1282,7 +1284,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
 
  sud->cxix     = cxix;
  sud->died     = 1;
- sud->callback = cv;
+ sud->callback = callback;
  SAVEDESTRUCTOR_X(su_uplevel_restore, sud);
 
  si = sud->si;
@@ -1319,9 +1321,9 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  Copy(cur->si_cxstack, si->si_cxstack, cxix, PERL_CONTEXT);
  SU_POISON(si->si_cxstack + cxix, si->si_cxmax + 1 - cxix, PERL_CONTEXT);
 
- target_cv      = cx->blk_sub.cv;
- sud->target    = (CV *) SvREFCNT_inc(target_cv);
- sud->old_depth = CvDEPTH(target_cv);
+ target            = cx->blk_sub.cv;
+ sud->target       = (CV *) SvREFCNT_inc(target);
+ sud->target_depth = CvDEPTH(target);
 
  /* blk_oldcop is essentially needed for caller() and stack traces. It has no
   * run-time implication, since PL_curcop will be overwritten as soon as we
@@ -1344,7 +1346,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
  /* Both SP and old_stack_sp point just before the CV. */
  Copy(old_stack_sp + 2, SP + 1, args, SV *);
  SP += args;
- PUSHs((SV *) cv);
+ PUSHs((SV *) callback);
  PUTBACK;
 
  Zero(&sub_op, 1, UNOP);
@@ -1363,7 +1365,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
   PERL_CONTEXT *sub_cx;
   CV *renamed_cv;
 
-  renamed_cv = su_cv_clone(cv, CvGV(target_cv));
+  renamed_cv = su_cv_clone(callback, CvGV(target));
 
   sub_cx = cxstack + cxstack_ix;
   sub_cx->blk_sub.cv = renamed_cv;
