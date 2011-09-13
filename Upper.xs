@@ -22,6 +22,22 @@
 # define dNOOP
 #endif
 
+#ifndef dVAR
+# define dVAR dNOOP
+#endif
+
+#ifndef MUTABLE_SV
+# define MUTABLE_SV(S) ((SV *) (S))
+#endif
+
+#ifndef MUTABLE_AV
+# define MUTABLE_AV(A) ((AV *) (A))
+#endif
+
+#ifndef MUTABLE_CV
+# define MUTABLE_CV(C) ((CV *) (C))
+#endif
+
 #ifndef PERL_UNUSED_VAR
 # define PERL_UNUSED_VAR(V)
 #endif
@@ -55,8 +71,21 @@
 # define SU_POISON(D, N, T) NOOP
 #endif
 
+#ifndef newSV_type
+STATIC SV *su_newSV_type(pTHX_ svtype t) {
+ SV *sv = newSV(0);
+ SvUPGRADE(sv, t);
+ return sv;
+}
+# define newSV_type(T) su_newSV_type(aTHX_ (T))
+#endif
+
 #ifndef SvPV_const
 # define SvPV_const(S, L) SvPV(S, L)
+#endif
+
+#ifndef SvPVX_const
+# define SvPVX_const(S) SvPVX(S)
 #endif
 
 #ifndef SvPV_nolen_const
@@ -79,6 +108,14 @@
 # define CvGV_set(C, G) (CvGV(C) = (G))
 #endif
 
+#ifndef CvSTASH_set
+# define CvSTASH_set(C, S) (CvSTASH(C) = (S))
+#endif
+
+#ifndef CvISXSUB
+# define CvISXSUB(C) CvXSUB(C)
+#endif
+
 #ifndef CxHASARGS
 # define CxHASARGS(C) ((C)->blk_sub.hasargs)
 #endif
@@ -89,10 +126,6 @@
 
 #ifndef gv_fetchpvn_flags
 # define gv_fetchpvn_flags(A, B, C, D) gv_fetchpv((A), (C), (D))
-#endif
-
-#ifndef cv_clone
-# define cv_clone(P) Perl_cv_clone(aTHX_ (P))
 #endif
 
 #ifndef PERL_MAGIC_tied
@@ -1120,61 +1153,100 @@ found_it:
  return;
 }
 
-STATIC CV *su_cv_clone(pTHX_ CV *old_cv) {
-#define su_cv_clone(C) su_cv_clone(aTHX_ (C))
- CV *new_cv;
+STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
+#define su_cv_clone(P, G) su_cv_clone(aTHX_ (P), (G))
+ dVAR;
+ AV        *protopadlist = CvPADLIST(proto);
+ const AV  *protopadname = (const AV *) *av_fetch(protopadlist, 0, FALSE);
+ SV       **pname        = AvARRAY(protopadname);
+ const I32  fpadlist     = AvFILLp(protopadlist);
+ const I32  fpadname     = AvFILLp(protopadname);
+ AV *padlist, *padname;
+ CV *cv;
 
- /* Starting from commit b5c19bd7 (first made public with perl 5.9.0),
-  * cv_clone() has an assert that checks whether CvDEPTH(CvOUTSIDE(proto)) > 0.
-  * If this perl has DEBUGGING enabled, we have to fool cv_clone() with a
-  * little dance. */
-#if defined(DEBUGGING) && SU_HAS_PERL(5, 9, 0)
- I32 old_depth;
- CV *outside = CvOUTSIDE(old_cv);
+ cv = MUTABLE_CV(newSV_type(SvTYPE(proto)));
 
- if (outside && CvCLONE(outside) && !CvCLONED(outside))
-  outside = find_runcv(NULL);
- old_depth = CvDEPTH(outside);
- if (!old_depth)
-  CvDEPTH(outside) = 1;
+ CvFLAGS(cv)  = CvFLAGS(proto);
+#ifdef CVf_CVGV_RC
+ CvFLAGS(cv) &= ~CVf_CVGV_RC;
+#endif
+ CvDEPTH(cv)  = CvDEPTH(proto);
+#ifdef USE_ITHREADS
+ CvFILE(cv)   = CvISXSUB(proto) ? CvFILE(proto) : savepv(CvFILE(proto));
+#else
+ CvFILE(cv)   = CvFILE(proto);
 #endif
 
- new_cv = cv_clone(old_cv);
+ CvGV_set(cv, gv);
+ CvSTASH_set(cv, CvSTASH(proto));
 
-#if defined(DEBUGGING) && SU_HAS_PERL(5, 9, 0)
- CvDEPTH(outside) = old_depth;
+ OP_REFCNT_LOCK;
+ CvROOT(cv)        = OpREFCNT_inc(CvROOT(proto));
+ OP_REFCNT_UNLOCK;
+ CvSTART(cv)       = CvSTART(proto);
+ CvOUTSIDE(cv)     = CvOUTSIDE(proto);
+#ifdef CVf_WEAKOUTSIDE
+ if (!(CvFLAGS(proto) & CVf_WEAKOUTSIDE))
+#endif
+  SvREFCNT_inc_simple_void(CvOUTSIDE(cv));
+#ifdef CvOUTSIDE_SEQ
+ CvOUTSIDE_SEQ(cv) = CvOUTSIDE_SEQ(proto);
 #endif
 
- /* Still from commit b5c19bd7, cv_clone() is no longer able to clone named
-  * subs propery. With this commit, pad_findlex() stores the parent index of a
-  * fake pad entry in the NV slot of the corresponding pad name SV, but only
-  * for anonymous subs (since named subs aren't supposed to be cloned in pure
-  * Perl land). To fix this, we just manually relink the new fake pad entries
-  * to the new ones.
-  * For some reason perl 5.8 crashes too without this, supposedly because of
-  * other closure bugs. Hence we enable it everywhere. */
- if (!CvCLONE(old_cv)) {
-  const AV  *old_padname = (const AV *)  AvARRAY(CvPADLIST(old_cv))[0];
-  AV        *old_pad     = (AV *)        AvARRAY(CvPADLIST(old_cv))[1];
-  AV        *new_pad     = (AV *)        AvARRAY(CvPADLIST(new_cv))[1];
-  const SV **old_aryname = (const SV **) AvARRAY(old_padname);
-  SV       **old_ary     = AvARRAY(old_pad);
-  SV       **new_ary     = AvARRAY(new_pad);
-  I32 fname = AvFILLp(old_padname);
-  I32 fpad  = AvFILLp(old_pad);
-  I32 ix;
+ if (SvPOK(proto))
+  sv_setpvn(MUTABLE_SV(cv), SvPVX_const(proto), SvCUR(proto));
 
-  for (ix = fpad; ix > 0; ix--) {
-   const SV *namesv = (ix <= fname) ? old_aryname[ix] : NULL;
+ padlist = newAV();
+ AvREAL_off(padlist);
+ av_fill(padlist, fpadlist);
+ CvPADLIST(cv) = padlist;
 
-   if (namesv && namesv != &PL_sv_undef && SvFAKE(namesv)) {
-    SvREFCNT_dec(new_ary[ix]);
-    new_ary[ix] = SvREFCNT_inc(old_ary[ix]);
+ padname = newAV();
+ av_fill(padname, fpadname);
+ if (fpadname >= 0) {
+  I32 j;
+  SV **psvp = AvARRAY(protopadname);
+  SV **svp  = AvARRAY(padname);
+
+  svp[0] = &PL_sv_undef;
+  for (j = 1; j <= fpadname; ++j)
+   svp[j] = SvREFCNT_inc(psvp[j]);
+ }
+ AvARRAY(padlist)[0] = MUTABLE_SV(padname);
+
+ if (fpadlist >= 1) {
+  I32 i;
+
+  for (i = 1; i <= fpadlist; ++i) {
+   AV  *protoframe = MUTABLE_AV(AvARRAY(protopadlist)[i]);
+   AV  *frame      = newAV();
+   SV **psvp       = AvARRAY(protoframe);
+   SV **svp;
+   I32  j,  fframe = AvFILLp(protoframe);
+
+   av_fill(frame, fframe);
+   svp = AvARRAY(frame);
+   if (i == 1) {
+    AV *a0 = newAV(); /* will be @_ */
+    AvREAL_off(a0);
+    AvREIFY_on(a0);
+    svp[0] = MUTABLE_SV(a0);
+   } else {
+    svp[0] = SvREFCNT_inc(psvp[0]);
    }
+   for (j = 1; j <= fframe; ++j)
+    svp[j] = SvREFCNT_inc(psvp[j]);
+
+   AvARRAY(padlist)[i] = MUTABLE_SV(frame);
   }
  }
 
- return new_cv;
+#ifdef CvCONST
+ if (CvCONST(cv))
+  CvCONST_off(cv);
+#endif
+
+ return cv;
 }
 
 STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
@@ -1284,9 +1356,7 @@ STATIC I32 su_uplevel(pTHX_ CV *cv, I32 cxix, I32 args) {
   PERL_CONTEXT *sub_cx;
   CV *renamed_cv;
 
-  renamed_cv = su_cv_clone(cv);
-  CvDEPTH(renamed_cv) = CvDEPTH(cv);
-  CvGV_set(renamed_cv, CvGV(target_cv));
+  renamed_cv = su_cv_clone(cv, CvGV(target_cv));
 
   sub_cx = cxstack + cxstack_ix;
   sub_cx->blk_sub.cv = renamed_cv;

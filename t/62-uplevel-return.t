@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => (13 + 5 + 4) * 2 + 1 + 3 + 11;
+use Test::More tests => (13 + 5 + 4) * 2 + 1 + (3 + 3 + 1) + 11;
 
 use Scope::Upper qw<uplevel HERE UP>;
 
@@ -76,6 +76,20 @@ for my $run (1 .. 3) {
   };
  }->('dummy');
  is $cb->(), 124, "near closure returned by uplevel still works";
+}
+
+{
+ my $id = 456;
+ for my $run (1 .. 3) {
+  my ($cb) = sub {
+   uplevel {
+    my $step = 2;
+    sub { $id += $step };
+   };
+  }->('dummy');
+  is $cb->(), 456 + 2 * $run, "far closure returned by uplevel still works";
+ }
+ is $id, 456 + 2 * 3, 'captured lexical has the right value at the end';
 }
 
 # Mark
