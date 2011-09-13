@@ -201,6 +201,10 @@ typedef struct {
  I32  target_depth;
 
  CV  *callback;
+ I32  callback_depth;
+ CV  *renamed;
+
+ AV *fake_argarray;
 
  PERL_SI *si;
  PERL_SI *old_curstackinfo;
@@ -1011,11 +1015,8 @@ STATIC MGVTBL su_uplevel_restore_vtbl = {
 
 STATIC void su_uplevel_restore(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
- const PERL_CONTEXT *sub_cx;
  PERL_SI *cur = sud->old_curstackinfo;
  PERL_SI *si  = sud->si;
-
- sub_cx = cxstack + sud->cxix;
 
  /* When we reach this place, POPSUB has already been called (with our fake
   * argarray). GvAV(PL_defgv) points to the savearray (that is, what @_ was
@@ -1023,20 +1024,19 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
   * or some empty replacement POPSUB creates when @_ is reified. In both cases
   * we have to destroy it before the context stack is swapped back to its
   * original state. */
- SvREFCNT_dec(sub_cx->blk_sub.argarray);
+ SvREFCNT_dec(sud->fake_argarray);
 
  /* PUSHSUB was exerted with the original callback, but after calling
   * pp_entersub() we hijacked the blk_sub.cv member of the fresh sub context
   * with the renamed CV. Thus POPSUB and LEAVESUB applied to this CV, not the
   * original. Repair this imbalance right now. */
- if (!(CvDEPTH(sud->callback) = sub_cx->blk_sub.olddepth))
+ if (!(CvDEPTH(sud->callback) = sud->callback_depth))
   LEAVESUB(sud->callback);
 
  /* Free the renamed cv. */
- {
-  CV *renamed_cv = sub_cx->blk_sub.cv;
-  CvDEPTH(renamed_cv) = 0;
-  SvREFCNT_dec(renamed_cv);
+ if (sud->renamed) {
+  CvDEPTH(sud->renamed) = 0;
+  SvREFCNT_dec(sud->renamed);
  }
 
  CATCH_SET(sud->old_catch);
@@ -1282,9 +1282,11 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 
  sud = su_uplevel_storage_new();
 
- sud->cxix     = cxix;
- sud->died     = 1;
- sud->callback = callback;
+ sud->cxix          = cxix;
+ sud->died          = 1;
+ sud->callback      = callback;
+ sud->renamed       = NULL;
+ sud->fake_argarray = NULL;
  SAVEDESTRUCTOR_X(su_uplevel_restore, sud);
 
  si = sud->si;
@@ -1362,17 +1364,19 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
  CATCH_SET(TRUE);
 
  if ((PL_op = PL_ppaddr[OP_ENTERSUB](aTHX))) {
-  PERL_CONTEXT *sub_cx;
-  CV *renamed_cv;
+  PERL_CONTEXT *sub_cx = cxstack + cxstack_ix;
+  CV *renamed;
 
-  renamed_cv = su_cv_clone(callback, CvGV(target));
+  sud->callback_depth = sub_cx->blk_sub.olddepth;
 
-  sub_cx = cxstack + cxstack_ix;
-  sub_cx->blk_sub.cv = renamed_cv;
+  renamed      = su_cv_clone(callback, CvGV(target));
+  sud->renamed = renamed;
+
+  sub_cx->blk_sub.cv = renamed;
   if (!sub_cx->blk_sub.olddepth) {
-   SvREFCNT_inc_simple_void(renamed_cv);
-   SvREFCNT_inc_simple_void(renamed_cv);
-   SAVEFREESV(renamed_cv);
+   SvREFCNT_inc_simple_void(renamed);
+   SvREFCNT_inc_simple_void(renamed);
+   SAVEFREESV(renamed);
   }
 
   if (CxHASARGS(cx) && cx->blk_sub.argarray) {
@@ -1386,10 +1390,11 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
    av_extend(av, AvMAX(cx->blk_sub.argarray));
    AvFILLp(av) = AvFILLp(cx->blk_sub.argarray);
    Copy(AvARRAY(cx->blk_sub.argarray), AvARRAY(av), AvFILLp(av) + 1, SV *);
-   cxstack[cxix].blk_sub.argarray = av;
+   sub_cx->blk_sub.argarray = av;
   } else {
-   SvREFCNT_inc_simple_void(cxstack[cxix].blk_sub.argarray);
+   SvREFCNT_inc_simple_void(sub_cx->blk_sub.argarray);
   }
+  sud->fake_argarray = sub_cx->blk_sub.argarray;
 
   CALLRUNOPS(aTHX);
 

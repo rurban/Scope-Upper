@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => (1 * 3 + 2 * 4 + 3 * 5) * 2 + 7 + 5 + 6 + 5 + 6;
+use Test::More tests => (1 * 3 + 2 * 4 + 3 * 5) * 2 + 7 + 5 + 6 + 5 + 6 + 5;
 
 use Scope::Upper qw<uplevel HERE UP TOP>;
 
@@ -252,5 +252,33 @@ sub four {
   };
 
   is $destroyed, 0,  "$desc: code is destroyed";
+ }
+
+ SKIP: {
+  skip 'This fails even with a plain subroutine call on 5.8.x' => 5
+                                                                if "$]" < 5.009;
+  local $@;
+  local $destroyed = 0;
+  my $desc = 'code destruction and goto';
+
+  {
+   my $lexical = 0;
+   my $cb = sub {
+    ++$lexical;
+    is $destroyed, 0, "$desc: not yet 1";
+   };
+   $cb = bless $cb, 'Scope::Upper::TestCodeDestruction';
+
+   eval {
+    sub {
+     &uplevel(sub { goto $cb } => HERE);
+     is $destroyed, 0, "$desc: not yet 2";
+    }->();
+   };
+   is $@,         '', "$desc: no error";
+   is $destroyed, 0,  "$desc: not yet 3";
+  }
+
+  is $destroyed, 1, "$desc: code is destroyed";
  }
 }
