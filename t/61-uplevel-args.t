@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 9 + 4 * 7 + 3 + 2 + 6;
+use Test::More tests => 9 + 4 * 7 + 3 + ((5 * 4 * 4) * 3 + 1) + 2 + 6;
 
 use Scope::Upper qw<uplevel HERE>;
 
@@ -143,6 +143,94 @@ sub {
  }->($s);
  is $s, 'xyz', 'aliasing, two layers 2';
 }->('dummy');
+
+# goto
+
+SKIP: {
+ if ("$]" < 5.008) {
+  my $cb = sub { fail "should not be executed" };
+  local $@;
+  eval { sub { uplevel { goto $cb } HERE }->() };
+  like $@, qr/^Can't goto to an uplevel'd stack frame on perl 5\.6/,
+           "goto croaks";
+  skip "goto to an uplevel'd stack frame does not work on perl 5\.6"
+                                                   => ((5 * 4 * 4) * 3 + 1) - 1;
+ }
+
+ my @args = (
+  [ [ ],          [ 'm' ]      ],
+  [ [ 'a' ],      [ ]          ],
+  [ [ 'b' ],      [ 'n' ]      ],
+  [ [ 'c' ],      [ 'o', 'p' ] ],
+  [ [ 'd', 'e' ], [ 'q' ]      ],
+ );
+
+ for my $args (@args) {
+  my ($out, $in) = @$args;
+
+  my @out  = @$out;
+  my @in   = @$in;
+
+  for my $reify_out (0, 1) {
+   for my $reify_in (0, 1) {
+    my $desc;
+
+    my $base_test = sub {
+     if ($reify_in) {
+      is_deeply \@_, $in, "$desc: \@_ inside";
+     } else {
+      is "@_", "@in", "$desc: \@_ inside";
+     }
+    };
+
+    my $goto_test         = sub { goto $base_test };
+    my $uplevel_test      = sub { &uplevel($base_test, @_, HERE) };
+    my $goto_uplevel_test = sub { &uplevel($goto_test, @_, HERE) };
+
+    my @tests = (
+     [ 'goto'                    => sub { goto $base_test }         ],
+     [ 'goto in goto'            => sub { goto $goto_test }         ],
+     [ 'uplevel in goto'         => sub { goto $uplevel_test }      ],
+     [ 'goto in uplevel in goto' => sub { goto $goto_uplevel_test } ],
+    );
+
+    for my $test (@tests) {
+     ($desc, my $cb) = @$test;
+     $desc .= ' (' . @out . ' out, ' . @in . ' in';
+     $desc .= ', reify out' if $reify_out;
+     $desc .= ', reify in'  if $reify_in;
+     $desc .= ')';
+
+     local $@;
+     eval {
+      sub {
+       &uplevel($cb, @in, HERE);
+       if ($reify_out) {
+        is_deeply \@_, $out, "$desc: \@_ outside";
+       } else {
+        is "@_", "@out", "$desc: \@_ outside";
+       }
+      }->(@out);
+     };
+     is $@, '', "$desc: no error";
+    }
+   }
+  }
+ }
+
+ sub {
+  my $s  = 'caesar';
+  my $cb = sub {
+   $_[0] = 'brutus';
+  };
+  sub {
+   uplevel {
+    goto $cb;
+   } $_[0], HERE;
+  }->($s);
+  is $s, 'brutus', 'aliasing and goto';
+ }->('dummy');
+}
 
 # Magic
 

@@ -520,6 +520,9 @@ However, it's possible to hook the end of the current scope compilation with L<B
 Some rare oddities may still happen when running inside the debugger.
 It may help to use a perl higher than 5.8.9 or 5.10.0, as they contain some context-related fixes.
 
+Calling C<goto> to replace an L</uplevel>'d code does not work reliably on perl 5.6 yet.
+An exception will be thrown to prevent you from doing so.
+
 =head1 DEPENDENCIES
 
 L<XSLoader> (standard since perl 5.006).

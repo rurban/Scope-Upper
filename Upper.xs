@@ -202,6 +202,7 @@ typedef struct {
 
  CV  *callback;
  CV  *renamed;
+ AV  *args;
 
  PERL_SI *si;
  PERL_SI *old_curstackinfo;
@@ -211,6 +212,10 @@ typedef struct {
 
  bool old_catch;
  OP  *old_op;
+
+ OP  *goto_op;
+ CV  *goto_code;
+ U32  goto_perldb;
 } su_uplevel_ud;
 
 STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
@@ -1225,6 +1230,156 @@ STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
  return cv;
 }
 
+#if SU_HAS_PERL(5, 8, 0)
+
+STATIC int su_uplevel_guard_free(pTHX_ SV *sv, MAGIC *mg) {
+ MAGIC         *omg = (MAGIC *)          mg->mg_ptr;
+ su_uplevel_ud *sud = (su_uplevel_ud *) omg->mg_ptr;
+ AV *args;
+
+ /* This code should be triggered by the FREETMPS in the first
+  * nextstate/dbstate op of the goto'd code. Its job is to reset the sub
+  * arguments to what the uplevel'd code was called with. */
+
+ if (PL_op != CvSTART(sud->goto_code))
+  croak("su_uplevel_guard_free() was called at an incorrect time");
+ sud->goto_code = NULL;
+
+ /* get_db_sub() has called save_item() on the SV member of the fake GV we
+  * used to replace PL_DBsub, so we can't kill it yet. Since set magic will
+  * be called when the item is restored, we save the fake GV so that we can
+  * correctly drop its refcount just after the restore. */
+ omg->mg_obj = MUTABLE_SV(PL_DBsub);
+ PL_DBsub    = NULL;
+
+ args = sud->args;
+ if (args) {
+  PERL_CONTEXT *cx;
+  I32 items = AvFILLp(args);
+  AV *argarray;
+  dSP;
+
+  EXTEND(SP, items + 2);
+  Copy(AvARRAY(args), SP + 1, items + 1, SV *);
+
+  cx       = cxstack + cxstack_ix;
+  argarray = cx->blk_sub.argarray;
+  av_extend(argarray, items);
+  Copy(AvARRAY(args), AvARRAY(argarray), items + 1, SV *);
+  AvFILLp(argarray) = items;
+ }
+
+ return 0;
+}
+
+STATIC MGVTBL su_uplevel_guard_vtbl = {
+ 0,
+ 0,
+ 0,
+ 0,
+ su_uplevel_guard_free
+};
+
+STATIC int su_uplevel_dbsv_get(pTHX_ SV *sv, MAGIC *mg) {
+ su_uplevel_ud *sud = (su_uplevel_ud *) mg->mg_ptr;
+ SV *guard;
+
+ /* This code should be called at the very end of pp_goto, after the
+  * SAVETMPS enclosing the sub was isseud and the blk_sub.cv member is set.
+  * It creates a magical mortal guard that will be destroyed soon at the next
+  * FREETMPS. */
+
+ if (PL_op != sud->goto_op)
+  croak("su_uplevel_dbsv_get() was called at an incorrect time");
+ sud->goto_op   = NULL;
+
+ sud->goto_code = cxstack[cxstack_ix].blk_sub.cv;
+ PL_perldb      = sud->goto_perldb;
+
+ guard = sv_newmortal();
+ sv_magicext(guard, 0, PERL_MAGIC_ext, &su_uplevel_guard_vtbl,
+                       (const char *) mg, 0);
+
+ return 0;
+}
+
+STATIC int su_uplevel_dbsv_set(pTHX_ SV *sv, MAGIC *mg) {
+ su_uplevel_ud *sud = (su_uplevel_ud *) mg->mg_ptr;
+ SV *guard;
+
+ /* This handler is supposed to be executed when the saved GvSV(PL_DBsub)
+  * is restored, which happens when the goto'd code terminates. Its aim is
+  * just to clean up after our hack. */
+
+ if (sud->goto_op)
+  croak("su_uplevel_dbsv_set() called before su_uplevel_dbsv_get");
+ if (sud->goto_code)
+  croak("su_uplevel_dbsv_set() called before su_uplevel_goto_2_free");
+
+ /* Don't free the current magical SV right now, because the mg_*() calls above
+  * us may still need it. */
+ sv_2mortal(sv);
+ SvREFCNT_dec(mg->mg_obj);
+
+ return 0;
+}
+
+STATIC MGVTBL su_uplevel_dbsv_vtbl = {
+ su_uplevel_dbsv_get,
+ su_uplevel_dbsv_set,
+ 0,
+ 0,
+ 0
+};
+
+#ifndef GvSVn
+# ifdef PERL_DONT_CREATE_GVSV
+#  define GvSVn(gv)       (*(GvGP(gv)->gp_sv ? \
+                           &(GvGP(gv)->gp_sv) : \
+                           &(GvGP(gv_SVadd(gv))->gp_sv)))
+# else
+#  define GvSVn(gv)       GvSV(gv)
+# endif
+#endif
+
+STATIC void su_uplevel_goto_handler(pTHX_ void *ud_) {
+ su_uplevel_ud *sud = ud_;
+
+ if (PL_op && PL_op->op_type == OP_GOTO && !PL_DBsub) {
+  SV *dbsv;
+
+  sud->goto_op     = PL_op;
+  sud->goto_code   = NULL;
+  sud->goto_perldb = PL_perldb;
+
+  PL_DBsub  = (GV *) newSV(0);
+  gv_init(PL_DBsub, NULL, "", 0, 0);
+  PL_perldb = PERLDBf_SUB;
+
+  dbsv = GvSVn(PL_DBsub);
+  sv_magicext(dbsv, NULL, PERL_MAGIC_ext, &su_uplevel_dbsv_vtbl,
+                          (const char *) sud, 0);
+  SvREFCNT_inc(dbsv);
+ }
+}
+
+#else /* SU_HAS_PERL(5, 8, 0) */
+
+STATIC void su_uplevel_goto_handler(pTHX_ void *ud_) {
+ su_uplevel_ud *sud = ud_;
+
+ if (PL_op && PL_op->op_type == OP_GOTO) {
+  /* Don't let the last sub context in an mixed state while we throw an
+   * exception, as this may cause double free errors (the blk_sub.cv member
+   * is still the renamed CV). Let our su_uplevel_restore() properly handle the
+   * destruction. */
+  cxstack[cxstack_ix].blk_sub.cv = NULL;
+  croak("Can't goto to an uplevel'd stack frame on perl 5.6");
+ }
+}
+
+#endif /* !SU_HAS_PERL(5, 8, 0) */
+
 STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 #define su_uplevel(C, I, A) su_uplevel(aTHX_ (C), (I), (A))
  su_uplevel_ud *sud;
@@ -1254,6 +1409,7 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
  sud->died     = 1;
  sud->callback = NULL;
  sud->renamed  = NULL;
+ sud->args     = NULL;
  SAVEDESTRUCTOR_X(su_uplevel_restore, sud);
 
  si = sud->si;
@@ -1355,6 +1511,9 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
   } else {
    SvREFCNT_inc_simple_void(sub_cx->blk_sub.argarray);
   }
+  sud->args = GvAV(PL_defgv);
+
+  SAVEDESTRUCTOR_X(su_uplevel_goto_handler, sud);
 
   CALLRUNOPS(aTHX);
 
