@@ -11,37 +11,38 @@ use Scope::Upper qw<uplevel HERE>;
 
 sub {
  uplevel { pass 'no @_: callback' };
- is_deeply \@_, [ 'dummy' ], 'no @_: @_ outside';
+ is "@_", 'dummy', 'no @_: @_ outside';
 }->('dummy');
 
 sub {
- uplevel { is_deeply \@_, [ ], "no arguments, no context" }
+ uplevel { is "@_", '', "no arguments, no context" }
 }->('dummy');
 
 sub {
- uplevel { is_deeply \@_, [ ], "no arguments, with context" } HERE
+ uplevel { is "@_", '', "no arguments, with context" } HERE
 }->('dummy');
 
 sub {
- uplevel { is_deeply \@_, [ 1 ], "one const argument" } 1, HERE
+ uplevel { is "@_", '1', "one const argument" } 1, HERE
 }->('dummy');
 
 my $x = 2;
 sub {
- uplevel { is_deeply \@_, [ 2 ], "one lexical argument" } $x, HERE
+ uplevel { is "@_", '2', "one lexical argument" } $x, HERE
 }->('dummy');
 
 our $y = 3;
 sub {
- uplevel { is_deeply \@_, [ 3 ], "one global argument" } $y, HERE
+ uplevel { is "@_", '3', "one global argument" } $y, HERE
 }->('dummy');
 
 sub {
- uplevel { is_deeply \@_, [ 4, 5 ], "two const arguments" } 4, 5, HERE
+ uplevel { is "@_", '4 5', "two const arguments" } 4, 5, HERE
 }->('dummy');
 
 sub {
- uplevel { is_deeply \@_, [ 1 .. 10 ], "ten const arguments" } 1 .. 10, HERE
+ uplevel { is "@_", '1 2 3 4 5 6 7 8 9 10', "ten const arguments" }
+         1 .. 10 => HERE;
 }->('dummy');
 
 # Reification of @_
