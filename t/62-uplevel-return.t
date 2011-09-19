@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => (13 + 5 + 4) * 2 + 1 + (3 + 3 + 1) + 11;
+use Test::More tests => (13 + 5 + 4) * 2 + 1 + (3 + 3 + 1) + 2 + 11;
 
 use Scope::Upper qw<uplevel HERE UP>;
 
@@ -147,6 +147,30 @@ for my $run (1 .. 3) {
 
  my @ret  = one('*');
  is_deeply \@ret, [ qw|< ( A B [ { * } ] Z ) >| ], "$desc: outside";
+}
+
+# goto
+
+SKIP: {
+ skip "goto to an uplevel'd stack frame does not work on perl 5\.6"
+                                                           => 2 if "$]" < 5.008;
+
+ {
+  my $desc = 'values returned from goto';
+  local $@;
+  my $cb  = sub { 'hello' };
+  my @ret = eval {
+   'a', sub {
+    'b', sub {
+     'c', &uplevel(sub {
+       'd', (goto $cb), 'w'
+     } => UP), 'x'
+    }->(), 'y'
+   }->(), 'z'
+  };
+  is        $@,    '',                        "$desc: did not croak";
+  is_deeply \@ret, [ qw<a b c hello x y z> ], "$desc: returned values";
+ }
 }
 
 # Magic
