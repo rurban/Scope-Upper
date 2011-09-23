@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 3 + (3 + 4 + 4) + (3 + 4 + 4) + 5 + 3*3 + (4 + 7);
+use Test::More tests => 3 + (3 + 4 + 4) + (3 + 4 + 4) + 5 + 3*3 + (4 + 7) + 1;
 
 use Scope::Upper qw<uplevel HERE SUB CALLER>;
 
@@ -306,4 +306,20 @@ sub clash {
  }->();
  is $@, '', "$desc: no exception outside";
  check_depth \&clash, 0, "$desc: depth at the beginning";
+}
+
+# XS
+
+{
+ my $desc = 'exception thrown from XS';
+ local $@;
+ eval {
+  sub {
+   &uplevel(\&uplevel => \1, HERE);
+  }->();
+ };
+ my $line = __LINE__-2; # The error happens at the target frame.
+ like $@,
+   qr/^First argument to uplevel must be a code reference at \Q$0\E line $line/,
+   "$desc: correct error";
 }

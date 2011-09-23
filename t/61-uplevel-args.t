@@ -3,9 +3,9 @@
 use strict;
 use warnings;
 
-use Test::More tests => 9 + 4 * 7 + 3 + ((5 * 4 * 4) * 3 + 1) + 2 + 6;
+use Test::More tests => 9 + 4 * 7 + 3 + ((5 * 4 * 4) * 3 + 1) + 3 + 2 + 6;
 
-use Scope::Upper qw<uplevel HERE>;
+use Scope::Upper qw<uplevel HERE UP>;
 
 # Basic
 
@@ -231,6 +231,29 @@ SKIP: {
   }->($s);
   is $s, 'brutus', 'aliasing and goto';
  }->('dummy');
+}
+
+# uplevel() to uplevel()
+
+{
+ my $desc = '\&uplevel as the uplevel() callback';
+ local $@;
+ eval {
+  sub {
+   my $cxt = HERE;
+   sub {
+    sub {
+     # Note that an XS call does not need a context, so after the first uplevel
+     # call UP will point to the scope above the first target.
+     uplevel(\&uplevel => (sub {
+      is "@_", '1 2 3', "$desc: arguments inisde";
+      is HERE, $cxt,    "$desc: context inside";
+     } => 1 .. 3 => UP) => UP);
+    }->(10 .. 19);
+   }->(sub { die 'wut' } => HERE);
+  }->('dummy');
+ };
+ is $@, '', "$desc: no error";
 }
 
 # Magic

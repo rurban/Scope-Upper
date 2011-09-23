@@ -1205,10 +1205,15 @@ STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
   Perl_sv_add_backref(aTHX_ CvSTASH(proto), MUTABLE_SV(cv));
 #endif
 
- OP_REFCNT_LOCK;
- CvROOT(cv)        = OpREFCNT_inc(CvROOT(proto));
- OP_REFCNT_UNLOCK;
- CvSTART(cv)       = CvSTART(proto);
+ if (CvISXSUB(proto)) {
+  CvXSUB(cv)       = CvXSUB(proto);
+  CvXSUBANY(cv)    = CvXSUBANY(proto);
+ } else {
+  OP_REFCNT_LOCK;
+  CvROOT(cv)       = OpREFCNT_inc(CvROOT(proto));
+  OP_REFCNT_UNLOCK;
+  CvSTART(cv)      = CvSTART(proto);
+ }
  CvOUTSIDE(cv)     = CvOUTSIDE(proto);
 #ifdef CVf_WEAKOUTSIDE
  if (!(CvFLAGS(proto) & CVf_WEAKOUTSIDE))
@@ -1492,6 +1497,9 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
  if ((PL_op = PL_ppaddr[OP_ENTERSUB](aTHX))) {
   PERL_CONTEXT *sub_cx = cxstack + cxstack_ix;
 
+  /* If pp_entersub() returns a non-null OP, it means that the callback is not
+   * an XSUB. */
+
   sud->callback = MUTABLE_CV(SvREFCNT_inc(callback));
   CvDEPTH(callback)++;
 
@@ -1516,14 +1524,11 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
   SAVEDESTRUCTOR_X(su_uplevel_goto_handler, sud);
 
   CALLRUNOPS(aTHX);
-
-  ret = PL_stack_sp - (PL_stack_base + new_mark);
  }
 
  sud->died = 0;
 
- SPAGAIN;
-
+ ret = PL_stack_sp - (PL_stack_base + new_mark);
  if (ret > 0) {
   AV *old_stack = sud->old_curstackinfo->si_stack;
 
@@ -1537,8 +1542,6 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
   PL_stack_sp        += ret;
   AvFILLp(old_stack) += ret;
  }
-
- PUTBACK;
 
  LEAVE;
 

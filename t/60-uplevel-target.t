@@ -3,7 +3,8 @@
 use strict;
 use warnings;
 
-use Test::More tests => (1 * 3 + 2 * 4 + 3 * 5) * 2 + 7 + 5 + 6 + 5 + 6 + 5;
+use Test::More
+             tests => (1 * 3 + 2 * 4 + 3 * 5) * 2 + 7 + 7 + (5 + 6 + 5 + 6 + 5);
 
 use Scope::Upper qw<uplevel HERE UP TOP>;
 
@@ -118,6 +119,39 @@ sub four {
   return;
  }->();
  like $@, qr/^Can't uplevel to an eval frame/, "$desc: dies";
+}
+
+# XS
+
+{
+ my $desc = 'uplevel to XS 1';
+ local $@;
+ eval {
+  sub {
+   my $cxt = HERE;
+   pass "$desc: before";
+   &uplevel(\&HERE => $cxt);
+   is HERE, $cxt, "$desc: after";
+  }->();
+ };
+ is $@, '', "$desc: no error";
+}
+
+{
+ my $desc = 'uplevel to XS 1';
+ local $@;
+ eval {
+  sub {
+   my $up = HERE;
+   sub {
+    is UP, $up, "$desc: before";
+    &uplevel(\&HERE => $up);
+    isnt HERE, $up, "$desc: after 1";
+   }->();
+   is HERE, $up, "$desc: after 2";
+  }->();
+ };
+ is $@, '', "$desc: no error";
 }
 
 # Target destruction

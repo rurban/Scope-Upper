@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => (13 + 5 + 4) * 2 + 1 + (3 + 3 + 1) + 2 + 11;
+use Test::More tests => (13 + 5 + 4) * 2 + 1 + (3 + 3 + 1) + 2 + 4 + 11;
 
 use Scope::Upper qw<uplevel HERE UP>;
 
@@ -171,6 +171,33 @@ SKIP: {
   is        $@,    '',                        "$desc: did not croak";
   is_deeply \@ret, [ qw<a b c hello x y z> ], "$desc: returned values";
  }
+}
+
+# uplevel() to uplevel()
+
+{
+ my $desc = '\&uplevel as the uplevel() callback';
+ local $@;
+ eval {
+  my @ret = sub {
+   my $cxt = HERE;
+   my @ret = sub {
+    my @ret = sub {
+     # Note that an XS call does not need a context, so after the first uplevel
+     # call UP will point to the scope above the first target.
+     'a', uplevel(\&uplevel => (sub {
+      return qw<x y z>;
+     } => UP) => UP), 'b';
+    }->();
+    is "@ret", 'a x y z b', "$desc: returned from uplevel";
+    return qw<u v w>;
+   }->();
+   is "@ret", 'u v w', "$desc: returned from the first target";
+   return qw<m n>;
+  }->();
+  is "@ret", 'm n', "$desc: returned from the second target";
+ };
+ is $@, '', "$desc: no error";
 }
 
 # Magic
