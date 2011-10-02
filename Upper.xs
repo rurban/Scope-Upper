@@ -202,7 +202,6 @@ typedef struct {
 
  CV  *callback;
  CV  *renamed;
- AV  *args;
 
  PERL_SI *si;
  PERL_SI *old_curstackinfo;
@@ -210,12 +209,9 @@ typedef struct {
 
  COP *old_curcop;
 
- bool old_catch;
- OP  *old_op;
-
- OP  *goto_op;
- CV  *goto_code;
- U32  goto_perldb;
+ runops_proc_t  old_runops;
+ bool           old_catch;
+ OP            *old_op;
 } su_uplevel_ud;
 
 STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
@@ -250,6 +246,7 @@ STATIC void su_uplevel_ud_delete(pTHX_ su_uplevel_ud *sud) {
 }
 
 typedef struct {
+ su_uplevel_ud *top;
  su_uplevel_ud *root;
  I32            count;
 } su_uplevel_storage;
@@ -979,12 +976,17 @@ STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX) {
   sud = su_uplevel_ud_new();
  }
 
+ sud->next = MY_CXT.uplevel_storage.top;
+ MY_CXT.uplevel_storage.top = sud;
+
  return sud;
 }
 
 STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_storage_delete(S) su_uplevel_storage_delete(aTHX_ (S))
  dMY_CXT;
+
+ MY_CXT.uplevel_storage.top = sud->next;
 
  if (MY_CXT.uplevel_storage.count >= SU_UPLEVEL_STORAGE_SIZE) {
   su_uplevel_ud_delete(sud);
@@ -995,25 +997,84 @@ STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
  }
 }
 
-#define SU_HAS_EXT_MAGIC SU_HAS_PERL(5, 8, 0)
+STATIC int su_uplevel_goto_static(const OP *o) {
+ for (; o; o = o->op_sibling) {
+  /* goto ops are unops with kids. */
+  if (!(o->op_flags & OPf_KIDS))
+   continue;
 
-#if SU_HAS_EXT_MAGIC && !SU_HAS_PERL(5, 13, 7)
-
-STATIC int su_uplevel_restore_free(pTHX_ SV *sv, MAGIC *mg) {
- su_uplevel_storage_delete((su_uplevel_ud *) mg->mg_ptr);
+  switch (o->op_type) {
+   case OP_LEAVEEVAL:
+   case OP_LEAVETRY:
+    /* Don't care about gotos inside eval, as they are forbidden at run time. */
+    break;
+   case OP_GOTO:
+    return 1;
+   default:
+    if (su_uplevel_goto_static(cUNOPo->op_first))
+     return 1;
+    break;
+  }
+ }
 
  return 0;
 }
 
-STATIC MGVTBL su_uplevel_restore_vtbl = {
- 0,
- 0,
- 0,
- 0,
- su_uplevel_restore_free
-};
+STATIC int su_uplevel_goto_runops(pTHX) {
+#define su_uplevel_goto_runops() su_uplevel_goto_runops(aTHX)
+ register OP *op;
+ dVAR;
 
-#endif /* SU_HAS_EXT_MAGIC && !SU_HAS_PERL(5, 13, 7) */
+ op = PL_op;
+ do {
+  if (op->op_type == OP_GOTO) {
+   AV  *argarray = NULL;
+   I32  cxix;
+
+   for (cxix = cxstack_ix; cxix >= 0; --cxix) {
+    const PERL_CONTEXT *cx = cxstack + cxix;
+
+    switch (CxTYPE(cx)) {
+     case CXt_SUB:
+      if (CxHASARGS(cx)) {
+       argarray = cx->blk_sub.argarray;
+       goto done;
+      }
+      break;
+     case CXt_EVAL:
+     case CXt_FORMAT:
+      goto done;
+     default:
+      break;
+    }
+   }
+
+done:
+   if (argarray) {
+    dMY_CXT;
+
+    if (MY_CXT.uplevel_storage.top->cxix == cxix) {
+     AV  *args  = GvAV(PL_defgv);
+     I32  items = AvFILLp(args);
+
+     av_extend(argarray, items);
+     Copy(AvARRAY(args), AvARRAY(argarray), items + 1, SV *);
+     AvFILLp(argarray) = items;
+    }
+   }
+  }
+
+  PL_op = op = op->op_ppaddr(aTHX);
+
+#if !SU_HAS_PERL(5, 13, 0)
+  PERL_ASYNC_CHECK();
+#endif
+ } while (op);
+
+ TAINT_NOT;
+
+ return 0;
+}
 
 #define su_at_underscore(C) AvARRAY(AvARRAY(CvPADLIST(C))[CvDEPTH(C)])[0]
 
@@ -1021,6 +1082,9 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
  PERL_SI *cur = sud->old_curstackinfo;
  PERL_SI *si  = sud->si;
+
+ if (PL_runops == su_uplevel_goto_runops)
+  PL_runops = sud->old_runops;
 
  if (sud->callback) {
   PERL_CONTEXT *cx = cxstack + sud->cxix;
@@ -1154,20 +1218,12 @@ found_it:
  /* This issue has been fixed in perl with commit 8f89e5a9, which was made
   * public in perl 5.13.7. */
  su_uplevel_storage_delete(sud);
-#elif SU_HAS_EXT_MAGIC
- /* If 'ext' magic is available, we work around this by attaching the state
-  * data to a scalar that will be freed "soon". */
- {
-  SV *sv = sv_newmortal();
-
-  sv_magicext(sv, NULL, PERL_MAGIC_ext, &su_uplevel_restore_vtbl,
-                        (const char *) sud, 0);
- }
 #else
  /* Otherwise, we just enqueue it back in the global storage list. */
  {
   dMY_CXT;
 
+  MY_CXT.uplevel_storage.top  = sud->next;
   sud->next = MY_CXT.uplevel_storage.root;
   MY_CXT.uplevel_storage.root = sud;
   MY_CXT.uplevel_storage.count++;
@@ -1235,156 +1291,6 @@ STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
  return cv;
 }
 
-#if SU_HAS_PERL(5, 8, 0)
-
-STATIC int su_uplevel_guard_free(pTHX_ SV *sv, MAGIC *mg) {
- MAGIC         *omg = (MAGIC *)          mg->mg_ptr;
- su_uplevel_ud *sud = (su_uplevel_ud *) omg->mg_ptr;
- AV *args;
-
- /* This code should be triggered by the FREETMPS in the first
-  * nextstate/dbstate op of the goto'd code. Its job is to reset the sub
-  * arguments to what the uplevel'd code was called with. */
-
- if (PL_op != CvSTART(sud->goto_code))
-  croak("su_uplevel_guard_free() was called at an incorrect time");
- sud->goto_code = NULL;
-
- /* get_db_sub() has called save_item() on the SV member of the fake GV we
-  * used to replace PL_DBsub, so we can't kill it yet. Since set magic will
-  * be called when the item is restored, we save the fake GV so that we can
-  * correctly drop its refcount just after the restore. */
- omg->mg_obj = MUTABLE_SV(PL_DBsub);
- PL_DBsub    = NULL;
-
- args = sud->args;
- if (args) {
-  PERL_CONTEXT *cx;
-  I32 items = AvFILLp(args);
-  AV *argarray;
-  dSP;
-
-  EXTEND(SP, items + 2);
-  Copy(AvARRAY(args), SP + 1, items + 1, SV *);
-
-  cx       = cxstack + cxstack_ix;
-  argarray = cx->blk_sub.argarray;
-  av_extend(argarray, items);
-  Copy(AvARRAY(args), AvARRAY(argarray), items + 1, SV *);
-  AvFILLp(argarray) = items;
- }
-
- return 0;
-}
-
-STATIC MGVTBL su_uplevel_guard_vtbl = {
- 0,
- 0,
- 0,
- 0,
- su_uplevel_guard_free
-};
-
-STATIC int su_uplevel_dbsv_get(pTHX_ SV *sv, MAGIC *mg) {
- su_uplevel_ud *sud = (su_uplevel_ud *) mg->mg_ptr;
- SV *guard;
-
- /* This code should be called at the very end of pp_goto, after the
-  * SAVETMPS enclosing the sub was isseud and the blk_sub.cv member is set.
-  * It creates a magical mortal guard that will be destroyed soon at the next
-  * FREETMPS. */
-
- if (PL_op != sud->goto_op)
-  croak("su_uplevel_dbsv_get() was called at an incorrect time");
- sud->goto_op   = NULL;
-
- sud->goto_code = cxstack[cxstack_ix].blk_sub.cv;
- PL_perldb      = sud->goto_perldb;
-
- guard = sv_newmortal();
- sv_magicext(guard, 0, PERL_MAGIC_ext, &su_uplevel_guard_vtbl,
-                       (const char *) mg, 0);
-
- return 0;
-}
-
-STATIC int su_uplevel_dbsv_set(pTHX_ SV *sv, MAGIC *mg) {
- su_uplevel_ud *sud = (su_uplevel_ud *) mg->mg_ptr;
- SV *guard;
-
- /* This handler is supposed to be executed when the saved GvSV(PL_DBsub)
-  * is restored, which happens when the goto'd code terminates. Its aim is
-  * just to clean up after our hack. */
-
- if (sud->goto_op)
-  croak("su_uplevel_dbsv_set() called before su_uplevel_dbsv_get");
- if (sud->goto_code)
-  croak("su_uplevel_dbsv_set() called before su_uplevel_goto_2_free");
-
- /* Don't free the current magical SV right now, because the mg_*() calls above
-  * us may still need it. */
- sv_2mortal(sv);
- SvREFCNT_dec(mg->mg_obj);
-
- return 0;
-}
-
-STATIC MGVTBL su_uplevel_dbsv_vtbl = {
- su_uplevel_dbsv_get,
- su_uplevel_dbsv_set,
- 0,
- 0,
- 0
-};
-
-#ifndef GvSVn
-# ifdef PERL_DONT_CREATE_GVSV
-#  define GvSVn(gv)       (*(GvGP(gv)->gp_sv ? \
-                           &(GvGP(gv)->gp_sv) : \
-                           &(GvGP(gv_SVadd(gv))->gp_sv)))
-# else
-#  define GvSVn(gv)       GvSV(gv)
-# endif
-#endif
-
-STATIC void su_uplevel_goto_handler(pTHX_ void *ud_) {
- su_uplevel_ud *sud = ud_;
-
- if (PL_op && PL_op->op_type == OP_GOTO && !PL_DBsub) {
-  SV *dbsv;
-
-  sud->goto_op     = PL_op;
-  sud->goto_code   = NULL;
-  sud->goto_perldb = PL_perldb;
-
-  PL_DBsub  = (GV *) newSV(0);
-  gv_init(PL_DBsub, NULL, "", 0, 0);
-  PL_perldb = PERLDBf_SUB;
-
-  dbsv = GvSVn(PL_DBsub);
-  sv_magicext(dbsv, NULL, PERL_MAGIC_ext, &su_uplevel_dbsv_vtbl,
-                          (const char *) sud, 0);
-  SvREFCNT_inc(dbsv);
- }
-}
-
-#else /* SU_HAS_PERL(5, 8, 0) */
-
-STATIC void su_uplevel_goto_handler(pTHX_ void *ud_) {
- su_uplevel_ud *sud = ud_;
-
- if (PL_op && PL_op->op_type == OP_GOTO) {
-  /* Don't let the last sub context in an mixed state while we throw an
-   * exception, as this may cause double free errors (the blk_sub.cv member
-   * is still the renamed CV). Let our su_uplevel_restore() properly handle the
-   * destruction. */
-  cxstack[cxstack_ix].blk_sub.cv = NULL;
-  croak("Can't goto to an uplevel'd stack frame on perl 5.6");
- }
-}
-
-#endif /* !SU_HAS_PERL(5, 8, 0) */
-
 STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 #define su_uplevel(C, I, A) su_uplevel(aTHX_ (C), (I), (A))
  su_uplevel_ud *sud;
@@ -1414,7 +1320,6 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
  sud->died     = 1;
  sud->callback = NULL;
  sud->renamed  = NULL;
- sud->args     = NULL;
  SAVEDESTRUCTOR_X(su_uplevel_restore, sud);
 
  si = sud->si;
@@ -1491,6 +1396,8 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 
  SU_UPLEVEL_SAVE(op, (OP *) &sub_op);
 
+ sud->old_runops = PL_runops;
+
  sud->old_catch = CATCH_GET;
  CATCH_SET(TRUE);
 
@@ -1519,9 +1426,18 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
   } else {
    SvREFCNT_inc_simple_void(sub_cx->blk_sub.argarray);
   }
-  sud->args = GvAV(PL_defgv);
 
-  SAVEDESTRUCTOR_X(su_uplevel_goto_handler, sud);
+  if (su_uplevel_goto_static(CvROOT(renamed))) {
+   if (PL_runops != Perl_runops_standard) {
+    if (PL_runops == Perl_runops_debug) {
+     if (PL_debug)
+      croak("uplevel() can't execute code that calls goto when debugging flags are set");
+    } else if (PL_runops != su_uplevel_goto_runops)
+     croak("uplevel() can't execute code that calls goto with a custom runloop");
+   }
+
+   PL_runops = su_uplevel_goto_runops;
+  }
 
   CALLRUNOPS(aTHX);
  }
@@ -1582,6 +1498,7 @@ STATIC void su_setup(pTHX) {
  MY_CXT.unwind_storage.proxy_op.op_type   = OP_STUB;
  MY_CXT.unwind_storage.proxy_op.op_ppaddr = NULL;
 
+ MY_CXT.uplevel_storage.top   = NULL;
  MY_CXT.uplevel_storage.root  = NULL;
  MY_CXT.uplevel_storage.count = 0;
 
@@ -1720,6 +1637,7 @@ PROTOTYPE: DISABLE
 PPCODE:
  {
   MY_CXT_CLONE;
+  MY_CXT.uplevel_storage.top   = NULL;
   MY_CXT.uplevel_storage.root  = NULL;
   MY_CXT.uplevel_storage.count = 0;
  }

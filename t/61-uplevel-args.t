@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 9 + 4 * 7 + 3 + ((5 * 4 * 4) * 3 + 1) + 3 + 2 + 6;
+use Test::More tests => 9 + 4 * 7 + 3 + ((5 * 4 * 4) * 3 + 1) + 5 + 3 + 2 + 6;
 
 use Scope::Upper qw<uplevel HERE UP>;
 
@@ -147,17 +147,7 @@ sub {
 
 # goto
 
-SKIP: {
- if ("$]" < 5.008) {
-  my $cb = sub { fail "should not be executed" };
-  local $@;
-  eval { sub { uplevel { goto $cb } HERE }->() };
-  like $@, qr/^Can't goto to an uplevel'd stack frame on perl 5\.6/,
-           "goto croaks";
-  skip "goto to an uplevel'd stack frame does not work on perl 5\.6"
-                                                   => ((5 * 4 * 4) * 3 + 1) - 1;
- }
-
+{
  my @args = (
   [ [ ],          [ 'm' ]      ],
   [ [ 'a' ],      [ ]          ],
@@ -231,6 +221,36 @@ SKIP: {
   }->($s);
   is $s, 'brutus', 'aliasing and goto';
  }->('dummy');
+}
+
+# goto XS
+
+{
+ my $desc = 'uplevel() calling goto &uplevel';
+ local $@;
+ eval {
+  sub {
+   my $outer_cxt = HERE;
+   sub {
+    my $inner_cxt = HERE;
+    sub {
+     uplevel {
+      is HERE, $inner_cxt, "$desc: context inside first uplevel";
+      is "@_", '1 2 3',    "$desc: arguments inisde first uplevel";
+      unshift @_, 0;
+      push    @_, 4;
+      unshift @_, sub {
+       is HERE, $outer_cxt,  "$desc: context inside second uplevel";
+       is "@_", '0 1 2 3 4', "$desc: arguments inisde second uplevel";
+      };
+      push @_, UP;
+      goto \&uplevel;
+     } 1 .. 3 => UP;
+    }->();
+   }->();
+  }->();
+ };
+ is $@, '', "$desc: no error";
 }
 
 # uplevel() to uplevel()
