@@ -1,5 +1,33 @@
 Revision history for Scope-Upper
 
+0.17    2011-10-03 21:45 UTC
+        + Fix : uplevel() will now use the correct pad when executing its                       callback. This fixes at least two issues :
+                - closures defined inside the uplevel callback can now correctly
+                access lexicals from inside and outside the callback.
+                - state variables in the uplevel callback now work properly.
+        + Fix : It is now generally possible to call goto() in the uplevel'd
+                code to replace the uplevel stack frame. There are two cases
+                for which it is still not possible :
+                - if -D flags were set when running perl (as in "perl -Dt ...").
+                - if the perl runloop has been replaced with a custom one by
+                another module.
+                If uplevel() detects that the replacement code contains a goto
+                statement, and is in one of those two cases, then it will refuse
+                to execute the callback and throw an exception.
+                Note that this fix implies a run-time overhead of uplevel()
+                proportional to the size of the the callback in every case
+                (with a small ratio), and proportional to the size of ALL the
+                code executed as the result of the uplevel call (including
+                subroutine calls inside the callback) when a goto statement is
+                found in the uplevel callback.
+        + Fix : uplevel() has been taught how to handle XS callbacks properly.
+        + Fix : The cause of "Attempt to free unreferenced scalar" warnings
+                when using uplevel() has been addressed.
+        + Fix : [RT #71212] : build failure on Windows.
+                The module does no longer rely on calling Perl_cv_clone, which
+                isn't exported.
+                Thanks C.H. Kang for reporting.
+
 0.16    2011-09-03 23:00 UTC
         + Add : uplevel($code, @args, $cxt) executes $code with arguments @args
                 in the upper context pointed by $cxt.

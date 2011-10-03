@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.16
+    Version 0.17
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -126,7 +126,7 @@ DESCRIPTION
     *   return values immediately to an upper level with "unwind", and know
         which context was in use then with "want_at" ;
 
-    *   execute a subroutine in the context of an upper subroutine stack
+    *   execute a subroutine in the setting of an upper subroutine stack
         frame with "uplevel".
 
 FUNCTIONS
@@ -274,15 +274,15 @@ FUNCTIONS
         }
 
         my @inverses = target(1, 2, 4); # @inverses contains (0, 0.5, 0.25)
-        my $count    = target(1, 2, 4); # $target is 3
+        my $count    = target(1, 2, 4); # $count is 3
 
     Sub::Uplevel also implements a pure-Perl version of "uplevel". Both are
     identical, with the following caveats :
 
     *   The Sub::Uplevel implementation of "uplevel" may execute a code
         reference in the context of any upper stack frame. The Scope::Upper
-        version only allows to uplevel to a subroutine stack frame, and will
-        croak if you try to target an "eval" or a format.
+        version can only uplevel to a subroutine stack frame, and will croak
+        if you try to target an "eval" or a format.
 
     *   Exceptions thrown from the code called by this version of "uplevel"
         will not be caught by "eval" blocks between the target frame and the
@@ -307,7 +307,7 @@ FUNCTIONS
         will print "inner block: wut..." with Sub::Uplevel and "outer block:
         wut..." with Scope::Upper.
 
-    *   Sub::Uplevel globally overrides "CORE::GLOBAL::caller", while
+    *   Sub::Uplevel globally overrides the Perl keyword "caller", while
         Scope::Upper does not.
 
     A simple wrapper lets you mimic the interface of "uplevel" in
@@ -425,7 +425,7 @@ WORDS
         ...
 
         # (*) Note that uplevel() will croak if you pass that scope frame,
-        #     because it can't target eval scopes.
+        #     because it cannot target eval scopes.
 
 EXPORT
     The functions "reap", "localize", "localize_elem", "localize_delete",
@@ -472,6 +472,21 @@ CAVEATS
     may help to use a perl higher than 5.8.9 or 5.10.0, as they contain some
     context-related fixes.
 
+    Calling "goto" to replace an "uplevel"'d code frame does not work when a
+    custom runloop is used or when debugging flags are set with "perl -D".
+    In those two cases, "uplevel" will look for a "goto &sub" statement in
+    its callback and, if there is one, throw an exception before executing
+    the code.
+
+    Moreover, in order to handle "goto" statements properly, "uplevel"
+    currently has to suffer a run-time overhead proportional to the size of
+    the the callback in every case (with a small ratio), and proportional to
+    the size of all the code executed as the result of the "uplevel" call
+    (including subroutine calls inside the callback) when a "goto" statement
+    is found in the "uplevel" callback. Despite this shortcoming, this XS
+    version of "uplevel" should still run way faster than the pure-Perl
+    version from Sub::Uplevel.
+
 DEPENDENCIES
     XSLoader (standard since perl 5.006).
 
@@ -480,14 +495,14 @@ SEE ALSO
 
     Alias, Hook::Scope, Scope::Guard, Guard.
 
+    Sub::Uplevel.
+
     Continuation::Escape is a thin wrapper around Scope::Upper that gives
     you a continuation passing style interface to "unwind". It's easier to
     use, but it requires you to have control over the scope where you want
     to return.
 
     Scope::Escape.
-
-    Sub::Uplevel provides a pure-Perl implementation of "uplevel".
 
 AUTHOR
     Vincent Pit, "<perl at profvince.com>", <http://www.profvince.com>.
