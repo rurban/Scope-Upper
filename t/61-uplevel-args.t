@@ -147,7 +147,17 @@ sub {
 
 # goto
 
-{
+SKIP: {
+ if ("$]" < 5.008) {
+  my $cb = sub { fail 'should not be executed' };
+  local $@;
+  eval { sub { uplevel { goto $cb } HERE }->() };
+  like $@, qr/^uplevel\(\) can't execute code that calls goto before perl 5\.8/,
+           'goto croaks';
+  skip "goto to an uplevel'd stack frame does not work on perl 5\.6"
+                                                   => ((5 * 4 * 4) * 3 + 1) - 1;
+ }
+
  my @args = (
   [ [ ],          [ 'm' ]      ],
   [ [ 'a' ],      [ ]          ],
@@ -225,7 +235,10 @@ sub {
 
 # goto XS
 
-{
+SKIP: {
+ skip "goto to an uplevel'd stack frame does not work on perl 5\.6" => 5
+                                                                if "$]" < 5.008;
+
  my $desc = 'uplevel() calling goto &uplevel';
  local $@;
  eval {

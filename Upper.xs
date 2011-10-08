@@ -191,6 +191,8 @@ typedef struct {
 
 /* --- uplevel() data tokens and global storage ---------------------------- */
 
+#define SU_UPLEVEL_HIJACKS_RUNOPS SU_HAS_PERL(5, 8, 0)
+
 typedef struct {
  void *next;
 
@@ -209,7 +211,9 @@ typedef struct {
 
  COP *old_curcop;
 
+#if SU_UPLEVEL_HIJACKS_RUNOPS
  runops_proc_t  old_runops;
+#endif
  bool           old_catch;
  OP            *old_op;
 } su_uplevel_ud;
@@ -1020,6 +1024,8 @@ STATIC int su_uplevel_goto_static(const OP *o) {
  return 0;
 }
 
+#if SU_UPLEVEL_HIJACKS_RUNOPS
+
 STATIC int su_uplevel_goto_runops(pTHX) {
 #define su_uplevel_goto_runops() su_uplevel_goto_runops(aTHX)
  register OP *op;
@@ -1076,6 +1082,8 @@ done:
  return 0;
 }
 
+#endif /* SU_UPLEVEL_HIJACKS_RUNOPS */
+
 #define su_at_underscore(C) AvARRAY(AvARRAY(CvPADLIST(C))[CvDEPTH(C)])[0]
 
 STATIC void su_uplevel_restore(pTHX_ void *sus_) {
@@ -1083,8 +1091,10 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
  PERL_SI *cur = sud->old_curstackinfo;
  PERL_SI *si  = sud->si;
 
+#if SU_UPLEVEL_HIJACKS_RUNOPS
  if (PL_runops == su_uplevel_goto_runops)
   PL_runops = sud->old_runops;
+#endif
 
  if (sud->callback) {
   PERL_CONTEXT *cx = cxstack + sud->cxix;
@@ -1396,7 +1406,9 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 
  SU_UPLEVEL_SAVE(op, (OP *) &sub_op);
 
+#if SU_UPLEVEL_HIJACKS_RUNOPS
  sud->old_runops = PL_runops;
+#endif
 
  sud->old_catch = CATCH_GET;
  CATCH_SET(TRUE);
@@ -1428,8 +1440,9 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
   }
 
   if (su_uplevel_goto_static(CvROOT(renamed))) {
-   if (PL_runops != Perl_runops_standard) {
-    if (PL_runops == Perl_runops_debug) {
+#if SU_UPLEVEL_HIJACKS_RUNOPS
+   if (PL_runops != PL_runops_std) {
+    if (PL_runops == PL_runops_dbg) {
      if (PL_debug)
       croak("uplevel() can't execute code that calls goto when debugging flags are set");
     } else if (PL_runops != su_uplevel_goto_runops)
@@ -1437,6 +1450,9 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
    }
 
    PL_runops = su_uplevel_goto_runops;
+#else  /* SU_UPLEVEL_HIJACKS_RUNOPS */
+   croak("uplevel() can't execute code that calls goto before perl 5.8");
+#endif /* !SU_UPLEVEL_HIJACKS_RUNOPS */
   }
 
   CALLRUNOPS(aTHX);

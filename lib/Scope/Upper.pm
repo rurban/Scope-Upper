@@ -520,8 +520,25 @@ However, it's possible to hook the end of the current scope compilation with L<B
 Some rare oddities may still happen when running inside the debugger.
 It may help to use a perl higher than 5.8.9 or 5.10.0, as they contain some context-related fixes.
 
-Calling C<goto> to replace an L</uplevel>'d code frame does not work when a custom runloop is used or when debugging flags are set with C<perl -D>.
-In those two cases, L</uplevel> will look for a C<goto &sub> statement in its callback and, if there is one, throw an exception before executing the code.
+Calling C<goto> to replace an L</uplevel>'d code frame does not work :
+
+=over 4
+
+=item *
+
+for a C<perl> older than the 5.8 series ;
+
+=item *
+
+for a C<DEBUGGING> C<perl> run with debugging flags set (as in C<perl -D ...>) ;
+
+=item *
+
+when the runloop callback is replaced by another module.
+
+=back
+
+In those three cases, L</uplevel> will look for a C<goto &sub> statement in its callback and, if there is one, throw an exception before executing the code.
 
 Moreover, in order to handle C<goto> statements properly, L</uplevel> currently has to suffer a run-time overhead proportional to the size of the the callback in every case (with a small ratio), and proportional to the size of B<all> the code executed as the result of the L</uplevel> call (including subroutine calls inside the callback) when a C<goto> statement is found in the L</uplevel> callback.
 Despite this shortcoming, this XS version of L</uplevel> should still run way faster than the pure-Perl version from L<Sub::Uplevel>.
