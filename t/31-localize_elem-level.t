@@ -43,7 +43,7 @@ local $Scope::Upper::TestGenerator::call = sub {
  my ($height, $level, $i) = @_;
  $level = $level ? 'UP ' x $level : 'HERE';
  return [ "localize_elem '%main::h', 'a' => 1 => $level;\n" ];
-}; 
+};
 
 local $Scope::Upper::TestGenerator::test = sub {
  my ($height, $level, $i) = @_;

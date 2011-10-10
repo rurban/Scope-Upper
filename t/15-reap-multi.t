@@ -111,7 +111,7 @@ $x = 0;
   is($x, 0, '1 didn\'t run');
  }
  is($x, 1, '1 ran');
- { 
+ {
   {
    {
     add 2 => UP UP;
