@@ -1,5 +1,17 @@
 Revision history for Scope-Upper
 
+0.18    2011-10-10 20:50 UTC
+        + Add : The uid() function returns an unique identifier for each dynamic
+                scope. The validate_uid() function can be used to check whether
+                one such identifier is valid (i.e. that the scope it refers to
+                is still alive).
+        + Chg : It is no longer possible on perl 5.6 to call goto() in an
+                uplevel callback to replace the uplevel call. This change was
+                needed in order to ensure consistency between platforms
+                regarding to the following fix just below.
+        + Fix : The uplevel() tests now pass on Windows.
+                Thanks C.H. Kang for bringing this to my attention.
+
 0.17    2011-10-03 21:45 UTC
         + Fix : uplevel() will now use the correct pad when executing its
                 callback. This fixes at least two issues :
