@@ -122,7 +122,9 @@ for my $wrong ('67-8.9', '001-def') {
   ok validate_uid($top), '$top defined before the guard is valid in destructor';
  }
 
- {
+ SKIP: {
+  skip 'Destructors are always last before perl 5.8' => 2 if "$]" < 5.008;
+
   $top = uid;
   my $guard = bless [], 'Scope::Upper::TestUIDDestructor2';
   ok validate_uid($top), '$top defined before the guard is valid in block';
