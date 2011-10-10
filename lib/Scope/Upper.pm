@@ -24,7 +24,10 @@ L</reap>, L</localize>, L</localize_elem>, L</localize_delete> and L</WORDS> :
 
     package Scope;
 
-    use Scope::Upper qw<reap localize localize_elem localize_delete :words>;
+    use Scope::Upper qw<
+     reap localize localize_elem localize_delete
+     :words
+    >;
 
     sub new {
      my ($class, $name) = @_;
@@ -66,22 +69,22 @@ L</reap>, L</localize>, L</localize_elem>, L</localize_delete> and L</WORDS> :
     package UserLand;
 
     {
-     Scope->new("top");      # initializes $UserLand::tag
+     Scope->new("top");    # initializes $UserLand::tag
 
      {
       Scope->catch;
-      my $one = 1 + undef;   # prints "top: Use of uninitialized value..."
+      my $one = 1 + undef; # prints "top: Use of uninitialized value..."
 
       {
        Scope->private;
        eval { require Cwd };
-       print $@;             # prints "Can't locate Cwd.pm in @INC (@INC contains:) at..."
-      }
+       print $@;           # prints "Can't locate Cwd.pm in @INC
+      }                    #         (@INC contains:) at..."
 
-      require Cwd;           # loads Cwd.pm
+      require Cwd;         # loads Cwd.pm
      }
 
-    }                        # prints "top: done"
+    }                      # prints "top: done"
 
 L</unwind> and L</want_at> :
 
@@ -507,13 +510,13 @@ Where L</reap> fires depending on the C<$cxt> :
        {
         reap \&cleanup => $cxt;
         ...
-       }     # $cxt = SCOPE(0), or HERE
+       }     # $cxt = SCOPE(0) = HERE
        ...
-      }->(); # $cxt = SCOPE(1), or UP, or SUB, or CALLER, or CALLER(0)
+      }->(); # $cxt = SCOPE(1) = UP = SUB = CALLER(0)
       ...
-     };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+     };      # $cxt = SCOPE(2) = UP UP =  UP SUB = EVAL = CALLER(1)
      ...
-    }->();   # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+    }->();   # $cxt = SCOPE(3) = SUB UP SUB = SUB EVAL = CALLER(2)
     ...
 
 Where L</localize>, L</localize_elem> and L</localize_delete> act depending on the C<$cxt> :
@@ -523,19 +526,19 @@ Where L</localize>, L</localize_elem> and L</localize_delete> act depending on t
       sub {
        {
         localize '$x' => 1 => $cxt;
-        # $cxt = SCOPE(0), or HERE
+        # $cxt = SCOPE(0) = HERE
         ...
        }
-       # $cxt = SCOPE(1), or UP, or SUB, or CALLER, or CALLER(0)
+       # $cxt = SCOPE(1) = UP = SUB = CALLER(0)
        ...
       }->();
-      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1)
+      # $cxt = SCOPE(2) = UP UP = UP SUB = EVAL = CALLER(1)
       ...
      };
-     # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+     # $cxt = SCOPE(3) = SUB UP SUB = SUB EVAL = CALLER(2)
      ...
     }->();
-    # $cxt = SCOPE(4), UP SUB UP SUB, or UP SUB EVAL, or UP CALLER(2), or TOP
+    # $cxt = SCOPE(4), UP SUB UP SUB = UP SUB EVAL = UP CALLER(2) = TOP
     ...
 
 Where L</unwind>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
@@ -544,15 +547,15 @@ Where L</unwind>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
      eval {
       sub {
        {
-        unwind @things => $cxt;     # or uplevel { ... } $cxt;
+        unwind @things => $cxt;   # or uplevel { ... } $cxt;
         ...
        }
        ...
-      }->(); # $cxt = SCOPE(0 .. 1), or HERE, or UP, or SUB, or CALLER(0)
+      }->(); # $cxt = SCOPE(0) = SCOPE(1) = HERE = UP = SUB = CALLER(0)
       ...
-     };      # $cxt = SCOPE(2), or UP UP, or UP SUB, or EVAL, or CALLER(1) (*)
+     };      # $cxt = SCOPE(2) = UP UP = UP SUB = EVAL = CALLER(1) (*)
      ...
-    }->();   # $cxt = SCOPE(3), or SUB UP SUB, or SUB EVAL, or CALLER(2)
+    }->();   # $cxt = SCOPE(3) = SUB UP SUB = SUB EVAL = CALLER(2)
     ...
 
     # (*) Note that uplevel() will croak if you pass that scope frame,
