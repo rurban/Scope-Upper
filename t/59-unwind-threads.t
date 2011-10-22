@@ -41,4 +41,6 @@ my @threads = map spawn(\&up1), 1 .. 30;
 
 $_->join for @threads;
 
-done_testing(scalar @threads);
+pass 'done';
+
+done_testing(scalar(@threads) + 1);
