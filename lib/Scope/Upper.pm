@@ -197,11 +197,18 @@ BEGIN {
  XSLoader::load(__PACKAGE__, $VERSION);
 }
 
-=head2 C<reap $callback, $context>
+=head2 C<reap>
+
+    reap { ... };
+    reap { ... } $context;
+    &reap($callback, $context);
 
 Adds a destructor that calls C<$callback> (in void context) when the upper scope represented by C<$context> ends.
 
-=head2 C<localize $what, $value, $context>
+=head2 C<localize>
+
+    localize $what, $value;
+    localize $what, $value, $context;
 
 Introduces a C<local> delayed to the time of first return into the upper scope denoted by C<$context>.
 C<$what> can be :
@@ -251,7 +258,10 @@ Although I believe it shouldn't be a problem as glob slots definedness is pretty
 
 =back
 
-=head2 C<localize_elem $what, $key, $value, $context>
+=head2 C<localize_elem>
+
+    localize_elem $what, $key, $value;
+    localize_elem $what, $key, $value, $context;
 
 Introduces a C<local $what[$key] = $value> or C<local $what{$key} = $value> delayed to the time of first return into the upper scope denoted by C<$context>.
 Unlike L</localize>, C<$what> must be a string and the type of localization is inferred from its sigil.
@@ -283,7 +293,10 @@ C<$key> is ignored.
 
 =back
 
-=head2 C<unwind @values, $context>
+=head2 C<unwind>
+
+    unwind @values;
+    unwind @values, $context;
 
 Returns C<@values> I<from> the context pointed by C<$context>, i.e. from the subroutine, eval or format at or just above C<$context>, and immediately restart the program flow at this point - thus effectively returning to an upper scope.
 
@@ -299,7 +312,10 @@ This means that
 will set C<$num> to C<'z'>.
 You can use L</want_at> to handle these cases.
 
-=head2 C<want_at $context>
+=head2 C<want_at>
+
+    my $want = want_at;
+    my $want = want_at $context;
 
 Like C<wantarray>, but for the subroutine/eval/format at or just above C<$context>.
 
@@ -314,6 +330,11 @@ The previous example can then be "corrected" :
 will rightfully set C<$num> to C<26>.
 
 =head2 C<uplevel $code, @args, $context>
+
+    my @ret = uplevel { ...; return @ret };
+    my @ret = uplevel { my @args = @_; ...; return @ret } @args;
+    my @ret = uplevel { ... } @args, $context;
+    my @ret = &uplevel($callback, @args, $context);
 
 Executes the code reference C<$code> with arguments C<@args> as if it were located at the subroutine stack frame pointed by C<$context>, effectively fooling C<caller> and C<die> into believing that the call actually happened higher in the stack.
 The code is executed in the context of the C<uplevel> call, and what it returns is returned as-is by C<uplevel>.
@@ -382,7 +403,10 @@ A simple wrapper lets you mimic the interface of L<Sub::Uplevel/uplevel> :
 
 Albeit the three exceptions listed above, it passes all the tests of L<Sub::Uplevel>.
 
-=head2 C<uid $context>
+=head2 C<uid>
+
+    my $uid = uid;
+    my $uid = uid $context;
 
 Returns an unique identifier (UID) for the context (or dynamic scope) pointed by C<$context>, or for the current context if C<$context> is omitted.
 This UID will only be valid for the life time of the context it represents, and another UID will be generated next time the same scope is executed.
@@ -427,7 +451,9 @@ The UIDs are not guaranteed to be numbers, so you must use the C<eq> operator to
 
 To check whether a given UID is valid, you can use the L</validate_uid> function.
 
-=head2 C<validate_uid $uid>
+=head2 C<validate_uid>
+
+    my $is_valid = validate_uid $uid;
 
 Returns true if and only if C<$uid> is the UID of a currently valid context (that is, it designates a scope that is higher than the current one in the call stack).
 
@@ -461,9 +487,13 @@ True iff the module could have been built when thread-safety features.
 
 =head3 C<TOP>
 
+    my $top_context = TOP;
+
 Returns the context that currently represents the highest scope.
 
 =head3 C<HERE>
+
+    my $current_context = HERE;
 
 The context of the current scope.
 
@@ -472,16 +502,25 @@ The context of the current scope.
 For any of those functions, C<$from> is expected to be a context.
 When omitted, it defaults to the the current context.
 
-=head3 C<UP $from>
+=head3 C<UP>
+
+    my $upper_context = UP;
+    my $upper_context = UP $from;
 
 The context of the scope just above C<$from>.
 
-=head3 C<SUB $from>
+=head3 C<SUB>
+
+    my $sub_context = SUB;
+    my $sub_context = SUB $from;
 
 The context of the closest subroutine above C<$from>.
 Note that C<$from> is returned if it is already a subroutine context ; hence C<SUB SUB == SUB>.
 
-=head3 C<EVAL $from>
+=head3 C<EVAL>
+
+    my $eval_context = EVAL;
+    my $eval_context = EVAL $from;
 
 The context of the closest eval above C<$from>.
 Note that C<$from> is returned if it is already an eval context ; hence C<EVAL EVAL == EVAL>.
@@ -491,11 +530,17 @@ Note that C<$from> is returned if it is already an eval context ; hence C<EVAL E
 Here, C<$level> should denote a number of scopes above the current one.
 When omitted, it defaults to C<0> and those functions return the same context as L</HERE>.
 
-=head3 C<SCOPE $level>
+=head3 C<SCOPE>
+
+    my $context = SCOPE;
+    my $context = SCOPE $level;
 
 The C<$level>-th upper context, regardless of its type.
 
-=head3 C<CALLER $level>
+=head3 C<CALLER>
+
+    my $context = CALLER;
+    my $context = CALLER $level;
 
 The context of the C<$level>-th upper subroutine/eval/format.
 It kind of corresponds to the context represented by C<caller $level>, but while e.g. C<caller 0> refers to the caller context, C<CALLER 0> will refer to the top scope in the current context.
