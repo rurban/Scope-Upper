@@ -322,30 +322,32 @@ typedef struct {
 #define SU_UPLEVEL_HIJACKS_RUNOPS SU_HAS_PERL(5, 8, 0)
 
 typedef struct {
- void *next;
+ void          *next;
 
- I32  cxix;
- bool died;
+ su_uid_storage new_uid_storage;
+ su_uid_storage old_uid_storage;
 
- CV  *target;
- I32  target_depth;
+ I32            cxix;
 
- CV  *callback;
- CV  *renamed;
+ I32            target_depth;
+ CV            *target;
 
- PERL_SI *si;
- PERL_SI *old_curstackinfo;
- AV      *old_mainstack;
+ CV            *callback;
+ CV            *renamed;
 
- COP *old_curcop;
+ PERL_SI       *si;
+ PERL_SI       *old_curstackinfo;
+ AV            *old_mainstack;
 
+ COP           *old_curcop;
+
+ OP            *old_op;
 #if SU_UPLEVEL_HIJACKS_RUNOPS
  runops_proc_t  old_runops;
 #endif
  bool           old_catch;
- OP            *old_op;
 
- su_uid_storage new_uid_storage, old_uid_storage;
+ bool           died;
 } su_uplevel_ud;
 
 STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
