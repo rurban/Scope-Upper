@@ -324,7 +324,7 @@ typedef struct {
 typedef struct {
  void          *next;
 
- su_uid_storage new_uid_storage;
+ su_uid_storage tmp_uid_storage;
  su_uid_storage old_uid_storage;
 
  I32            cxix;
@@ -358,9 +358,9 @@ STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
  Newx(sud, 1, su_uplevel_ud);
  sud->next = NULL;
 
- sud->new_uid_storage.map   = NULL;
- sud->new_uid_storage.used  = 0;
- sud->new_uid_storage.alloc = 0;
+ sud->tmp_uid_storage.map   = NULL;
+ sud->tmp_uid_storage.used  = 0;
+ sud->tmp_uid_storage.alloc = 0;
 
  Newx(si, 1, PERL_SI);
  si->si_stack   = newAV();
@@ -381,9 +381,9 @@ STATIC void su_uplevel_ud_delete(pTHX_ su_uplevel_ud *sud) {
  SvREFCNT_dec(si->si_stack);
  Safefree(si);
 
- if (sud->new_uid_storage.map) {
-  su_uid **map   = sud->new_uid_storage.map;
-  STRLEN   alloc = sud->new_uid_storage.alloc;
+ if (sud->tmp_uid_storage.map) {
+  su_uid **map   = sud->tmp_uid_storage.map;
+  STRLEN   alloc = sud->tmp_uid_storage.alloc;
   STRLEN   i;
 
   for (i = 0; i < alloc; ++i)
@@ -1134,9 +1134,9 @@ STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX_ I32 cxix) {
  MY_CXT.uplevel_storage.top = sud;
 
  depth = su_uid_depth(cxix);
- su_uid_storage_dup(&sud->new_uid_storage, &MY_CXT.uid_storage, depth);
+ su_uid_storage_dup(&sud->tmp_uid_storage, &MY_CXT.uid_storage, depth);
  sud->old_uid_storage = MY_CXT.uid_storage;
- MY_CXT.uid_storage   = sud->new_uid_storage;
+ MY_CXT.uid_storage   = sud->tmp_uid_storage;
 
  return sud;
 }
@@ -1145,13 +1145,13 @@ STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_storage_delete(S) su_uplevel_storage_delete(aTHX_ (S))
  dMY_CXT;
 
- sud->new_uid_storage = MY_CXT.uid_storage;
+ sud->tmp_uid_storage = MY_CXT.uid_storage;
  MY_CXT.uid_storage   = sud->old_uid_storage;
  {
   su_uid **map;
   UV  i, alloc;
-  map   = sud->new_uid_storage.map;
-  alloc = sud->new_uid_storage.alloc;
+  map   = sud->tmp_uid_storage.map;
+  alloc = sud->tmp_uid_storage.alloc;
   for (i = 0; i < alloc; ++i) {
    if (map[i])
     map[i]->flags &= SU_UID_ACTIVE;
@@ -1400,7 +1400,7 @@ found_it:
  {
   dMY_CXT;
 
-  sud->new_uid_storage = MY_CXT.uid_storage;
+  sud->tmp_uid_storage = MY_CXT.uid_storage;
   MY_CXT.uid_storage   = sud->old_uid_storage;
 
   MY_CXT.uplevel_storage.top  = sud->next;
