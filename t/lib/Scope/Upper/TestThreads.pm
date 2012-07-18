@@ -27,7 +27,7 @@ sub import {
  skipall 'This perl wasn\'t built to support threads'
                                                     unless $Config{useithreads};
  skipall 'perl 5.13.4 required to test thread safety'
-                                              unless $force or "$]" >= 5.013004;
+                                             unless $force or "$]" >= 5.013_004;
 
  my $t_v = $force ? '0' : '1.67';
  my $has_threads =  do {

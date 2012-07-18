@@ -67,7 +67,7 @@ undef *x;
 SKIP:
 {
  skip 'Can\'t localize through a reference before 5.8.1' => 2
-                                                             if "$]" < 5.008001;
+                                                            if "$]" < 5.008_001;
  eval q{
   no strict 'refs';
   local ${''} = 9;
@@ -82,7 +82,7 @@ SKIP:
 SKIP:
 {
  skip 'Can\'t localize through a reference before 5.8.1' => 2
-                                                             if "$]" < 5.008001;
+                                                            if "$]" < 5.008_001;
  eval q{
   no strict 'refs';
   local ${''} = 10;
