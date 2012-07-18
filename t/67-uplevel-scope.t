@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4 + 3 * 2;
+use Test::More tests => 2 + 2 * 6 + 3 * 2;
 
 use Scope::Upper qw<uplevel HERE UP>;
 
@@ -30,19 +30,35 @@ use Scope::Upper qw<uplevel HERE UP>;
 }
 
 sub {
- "abc" =~ /(.)/;
+ 'abc' =~ /(.)/;
+ is $1, 'a', 'match variables scoping 1: before 1';
  sub {
-  "xyz" =~ /(.)/;
-  uplevel { is $1, 'x', 'match variables scoping 1' } HERE;
+  'uvw' =~ /(.)/;
+  is $1, 'u', 'match variables scoping 1: before 2';
+  uplevel {
+   is $1, 'u', 'match variables scoping 1: before 3';
+   'xyz' =~ /(.)/;
+   is $1, 'x', 'match variables scoping 1: after 1';
+  } HERE;
+  is $1, 'u', 'match variables scoping 1: after 2';
  }->();
+ is $1, 'a', 'match variables scoping 1: after 3';
 }->();
 
 sub {
- "abc" =~ /(.)/;
+ 'abc' =~ /(.)/;
+ is $1, 'a', 'match variables scoping 2: before 1';
  sub {
-  "xyz" =~ /(.)/;
-  uplevel { is $1, 'x', 'match variables scoping 2' } UP;
+  'uvw' =~ /(.)/;
+  is $1, 'u', 'match variables scoping 2: before 2';
+  uplevel {
+   is $1, 'u', 'match variables scoping 2: before 3';
+   'xyz' =~ /(.)/;
+   is $1, 'x', 'match variables scoping 2: after 1';
+  } UP;
+  is $1, 'u', 'match variables scoping 2: after 2';
  }->();
+ is $1, 'a', 'match variables scoping 2: after 3';
 }->();
 
 SKIP: {
