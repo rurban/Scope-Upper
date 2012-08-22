@@ -40,15 +40,19 @@ my %PREREQ_PM = (
  'base'     => 0,
 );
 
+my %BUILD_REQUIRES = (
+ 'ExtUtils::MakeMaker' => 0,
+ 'Test::More'          => 0,
+ %PREREQ_PM,
+);
+
 my %META = (
  configure_requires => {
   'Config'              => 0,
   'ExtUtils::MakeMaker' => 0,
  },
  build_requires => {
-  'ExtUtils::MakeMaker' => 0,
-  'Test::More'          => 0,
-  %PREREQ_PM,
+  %BUILD_REQUIRES,
  },
  dynamic_config => 1,
  resources => {
@@ -67,6 +71,7 @@ WriteMakefile(
  ABSTRACT_FROM    => $file,
  PL_FILES         => {},
  @DEFINES,
+ BUILD_REQUIRES   => \%BUILD_REQUIRES,
  PREREQ_PM        => \%PREREQ_PM,
  MIN_PERL_VERSION => '5.006',
  META_MERGE       => \%META,
