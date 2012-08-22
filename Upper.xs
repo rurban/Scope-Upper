@@ -660,6 +660,8 @@ typedef struct {
 
 /* ... Reap ................................................................ */
 
+#define SU_SAVE_LAST_CX (!SU_HAS_PERL(5, 8, 4) || (SU_HAS_PERL(5, 9, 5) && !SU_HAS_PERL(5, 14, 0)) || SU_HAS_PERL(5, 15, 0))
+
 typedef struct {
  su_ud_common ci;
  SV *cb;
@@ -667,10 +669,10 @@ typedef struct {
 
 STATIC void su_call(pTHX_ void *ud_) {
  su_ud_reap *ud = (su_ud_reap *) ud_;
-#if SU_HAS_PERL(5, 9, 5)
- PERL_CONTEXT saved_cx;
+#if SU_SAVE_LAST_CX
  I32 cxix;
-#endif
+ PERL_CONTEXT saved_cx;
+#endif /* SU_SAVE_LAST_CX */
 
  dSP;
 
@@ -686,22 +688,18 @@ STATIC void su_call(pTHX_ void *ud_) {
  PUSHMARK(SP);
  PUTBACK;
 
+#if SU_SAVE_LAST_CX
  /* If the recently popped context isn't saved there, it will be overwritten by
   * the sub scope from call_sv, although it's still needed in our caller. */
-
-#if SU_HAS_PERL(5, 9, 5)
- if (cxstack_ix < cxstack_max)
-  cxix = cxstack_ix + 1;
- else
-  cxix = Perl_cxinc(aTHX);
+ cxix     = (cxstack_ix < cxstack_max) ? (cxstack_ix + 1) : Perl_cxinc(aTHX);
  saved_cx = cxstack[cxix];
-#endif
+#endif /* SU_SAVE_LAST_CX */
 
  call_sv(ud->cb, G_VOID);
 
-#if SU_HAS_PERL(5, 9, 5)
+#if SU_SAVE_LAST_CX
  cxstack[cxix] = saved_cx;
-#endif
+#endif /* SU_SAVE_LAST_CX */
 
  PUTBACK;
 
