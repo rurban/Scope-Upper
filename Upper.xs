@@ -116,6 +116,10 @@ STATIC SV *su_newSV_type(pTHX_ svtype t) {
 # define CvISXSUB(C) CvXSUB(C)
 #endif
 
+#ifndef PADLIST_ARRAY
+# define PADLIST_ARRAY(P) AvARRAY(P)
+#endif
+
 #ifndef CxHASARGS
 # define CxHASARGS(C) ((C)->blk_sub.hasargs)
 #endif
@@ -1249,7 +1253,7 @@ done:
 
 #endif /* SU_UPLEVEL_HIJACKS_RUNOPS */
 
-#define su_at_underscore(C) AvARRAY(AvARRAY(CvPADLIST(C))[CvDEPTH(C)])[0]
+#define su_at_underscore(C) AvARRAY(PADLIST_ARRAY(CvPADLIST(C))[CvDEPTH(C)])[0]
 
 STATIC void su_uplevel_restore(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
