@@ -223,7 +223,7 @@ SKIP: {
  like $@, qr/^tomato at \Q$0\E line $line/, "$desc (third): correct exception";
 }
 
-my $has_B = do { local $@; eval 'require B; 1' };
+my $has_B = do { local $@; eval { require B; 1 } };
 
 sub check_depth {
  my ($code, $expected, $desc) = @_;
