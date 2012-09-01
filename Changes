@@ -1,5 +1,13 @@
 Revision history for Scope-Upper
 
+0.19    2012-09-01 13:25 UTC
+        + Doc : POD headings have been made linkable.
+        + Fix : Building with perl 5.17.4.
+        + Fix : BUILD_PREREQS are now set for ExtUtils::MakeMaker.
+        + Opt : uplevel() private data structure is 7% smaller on 64 bits
+                architectures.
+        + Tst : Author tests overhaul.
+
 0.18    2011-10-10 20:50 UTC
         + Add : The uid() function returns an unique identifier for each dynamic
                 scope. The validate_uid() function can be used to check whether

@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.18
+    Version 0.19
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -166,11 +166,18 @@ FUNCTIONS
     which means that you can safely store it at some point and use it when
     needed, and it will still denote the original scope.
 
-  "reap $callback, $context"
+  "reap"
+        reap { ... };
+        reap { ... } $context;
+        &reap($callback, $context);
+
     Adds a destructor that calls $callback (in void context) when the upper
     scope represented by $context ends.
 
-  "localize $what, $value, $context"
+  "localize"
+        localize $what, $value;
+        localize $what, $value, $context;
+
     Introduces a "local" delayed to the time of first return into the upper
     scope denoted by $context. $what can be :
 
@@ -223,7 +230,10 @@ FUNCTIONS
         implementation detail, this behaviour may change in the future if
         proved harmful.
 
-  "localize_elem $what, $key, $value, $context"
+  "localize_elem"
+        localize_elem $what, $key, $value;
+        localize_elem $what, $key, $value, $context;
+
     Introduces a "local $what[$key] = $value" or "local $what{$key} =
     $value" delayed to the time of first return into the upper scope denoted
     by $context. Unlike "localize", $what must be a string and the type of
@@ -252,7 +262,10 @@ FUNCTIONS
         in the upper scope. It's actually more powerful, as &func won't even
         "exists" anymore. $key is ignored.
 
-  "unwind @values, $context"
+  "unwind"
+        unwind @values;
+        unwind @values, $context;
+
     Returns @values *from* the context pointed by $context, i.e. from the
     subroutine, eval or format at or just above $context, and immediately
     restart the program flow at this point - thus effectively returning to
@@ -269,7 +282,10 @@ FUNCTIONS
 
     will set $num to 'z'. You can use "want_at" to handle these cases.
 
-  "want_at $context"
+  "want_at"
+        my $want = want_at;
+        my $want = want_at $context;
+
     Like "wantarray", but for the subroutine/eval/format at or just above
     $context.
 
@@ -284,6 +300,11 @@ FUNCTIONS
     will rightfully set $num to 26.
 
   "uplevel $code, @args, $context"
+        my @ret = uplevel { ...; return @ret };
+        my @ret = uplevel { my @args = @_; ...; return @ret } @args;
+        my @ret = uplevel { ... } @args, $context;
+        my @ret = &uplevel($callback, @args, $context);
+
     Executes the code reference $code with arguments @args as if it were
     located at the subroutine stack frame pointed by $context, effectively
     fooling "caller" and "die" into believing that the call actually
@@ -352,7 +373,10 @@ FUNCTIONS
     Albeit the three exceptions listed above, it passes all the tests of
     Sub::Uplevel.
 
-  "uid $context"
+  "uid"
+        my $uid = uid;
+        my $uid = uid $context;
+
     Returns an unique identifier (UID) for the context (or dynamic scope)
     pointed by $context, or for the current context if $context is omitted.
     This UID will only be valid for the life time of the context it
@@ -401,7 +425,9 @@ FUNCTIONS
     To check whether a given UID is valid, you can use the "validate_uid"
     function.
 
-  "validate_uid $uid"
+  "validate_uid"
+        my $is_valid = validate_uid $uid;
+
     Returns true if and only if $uid is the UID of a currently valid context
     (that is, it designates a scope that is higher than the current one in
     the call stack).
@@ -431,23 +457,36 @@ CONSTANTS
 WORDS
   Constants
    "TOP"
+        my $top_context = TOP;
+
     Returns the context that currently represents the highest scope.
 
    "HERE"
+        my $current_context = HERE;
+
     The context of the current scope.
 
   Getting a context from a context
     For any of those functions, $from is expected to be a context. When
     omitted, it defaults to the the current context.
 
-   "UP $from"
+   "UP"
+        my $upper_context = UP;
+        my $upper_context = UP $from;
+
     The context of the scope just above $from.
 
-   "SUB $from"
+   "SUB"
+        my $sub_context = SUB;
+        my $sub_context = SUB $from;
+
     The context of the closest subroutine above $from. Note that $from is
     returned if it is already a subroutine context ; hence "SUB SUB == SUB".
 
-   "EVAL $from"
+   "EVAL"
+        my $eval_context = EVAL;
+        my $eval_context = EVAL $from;
+
     The context of the closest eval above $from. Note that $from is returned
     if it is already an eval context ; hence "EVAL EVAL == EVAL".
 
@@ -456,10 +495,16 @@ WORDS
     When omitted, it defaults to 0 and those functions return the same
     context as "HERE".
 
-   "SCOPE $level"
+   "SCOPE"
+        my $context = SCOPE;
+        my $context = SCOPE $level;
+
     The $level-th upper context, regardless of its type.
 
-   "CALLER $level"
+   "CALLER"
+        my $context = CALLER;
+        my $context = CALLER $level;
+
     The context of the $level-th upper subroutine/eval/format. It kind of
     corresponds to the context represented by "caller $level", but while
     e.g. "caller 0" refers to the caller context, "CALLER 0" will refer to
@@ -636,7 +681,7 @@ ACKNOWLEDGEMENTS
     Thanks to Shawn M. Moore for motivation.
 
 COPYRIGHT & LICENSE
-    Copyright 2008,2009,2010,2011 Vincent Pit, all rights reserved.
+    Copyright 2008,2009,2010,2011,2012 Vincent Pit, all rights reserved.
 
     This program is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.
