@@ -270,7 +270,10 @@ C<$key> is either an array index or a hash key, depending of which kind of varia
 
 If C<$what> is a string pointing to an undeclared variable, the variable will be vivified as soon as the localization occurs and emptied when it ends, although it will still exist in its glob.
 
-=head2 C<localize_delete $what, $key, $context>
+=head2 C<localize_delete>
+
+    localize_delete $what, $key;
+    localize_delete $what, $key, $context;
 
 Introduces the deletion of a variable or an array/hash element delayed to the time of first return into the upper scope denoted by C<$context>.
 C<$what> can be:
@@ -329,14 +332,14 @@ The previous example can then be "corrected" :
 
 will rightfully set C<$num> to C<26>.
 
-=head2 C<uplevel $code, @args, $context>
+=head2 C<uplevel>
 
     my @ret = uplevel { ...; return @ret };
     my @ret = uplevel { my @args = @_; ...; return @ret } @args;
     my @ret = uplevel { ... } @args, $context;
     my @ret = &uplevel($callback, @args, $context);
 
-Executes the code reference C<$code> with arguments C<@args> as if it were located at the subroutine stack frame pointed by C<$context>, effectively fooling C<caller> and C<die> into believing that the call actually happened higher in the stack.
+Executes the code reference C<$callback> with arguments C<@args> as if it were located at the subroutine stack frame pointed by C<$context>, effectively fooling C<caller> and C<die> into believing that the call actually happened higher in the stack.
 The code is executed in the context of the C<uplevel> call, and what it returns is returned as-is by C<uplevel>.
 
     sub target {
