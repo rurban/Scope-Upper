@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4;
+use Test::More tests => 6;
 
 use Scope::Upper qw<unwind>;
 
@@ -13,12 +13,14 @@ my @res;
  unwind;
  8;
 });
+is $@, '', 'unwind() does not croak';
 is_deeply \@res, [ 7 ], 'unwind()';
 
 @res = (7, eval {
  unwind -1;
  8;
 });
+like $@, qr/^Can't\s+return\s+outside\s+a\s+subroutine/, 'unwind(-1) croaks';
 is_deeply \@res, [ 7 ], 'unwind(-1)';
 
 @res = (7, eval {
