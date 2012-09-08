@@ -893,9 +893,9 @@ done:
 
 #if SU_DEBUG
 # ifdef DEBUGGING
-#  define SU_CXNAME PL_block_type[CxTYPE(&cxstack[cxstack_ix])]
+#  define SU_CXNAME(C) PL_block_type[CxTYPE(C)]
 # else
-#  define SU_CXNAME "XXX"
+#  define SU_CXNAME(C) "XXX"
 # endif
 #endif
 
@@ -908,7 +908,7 @@ STATIC void su_pop(pTHX_ void *ud) {
   PerlIO_printf(Perl_debug_log,
    "%p: --- pop a %s\n"
    "%p: leave scope     at depth=%2d scope_ix=%2d cur_top=%2d cur_base=%2d\n",
-    ud, SU_CXNAME,
+    ud, SU_CXNAME(cxstack + cxstack_ix),
     ud, depth, PL_scopestack_ix,PL_savestack_ix,PL_scopestack[PL_scopestack_ix])
  );
 
