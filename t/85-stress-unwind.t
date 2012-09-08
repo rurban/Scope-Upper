@@ -51,6 +51,9 @@ sub contextify {
  }
 }
 
+my $integer = 0;
+my $items   = 0;
+
 sub gen {
  my ($height, $level, $i) = @_;
  push @_, $i = 0 if @_ == 2;
@@ -65,7 +68,7 @@ sub gen {
      $blk->[0] . $cx->[0] . $code . $cx->[1] . $blk->[1],
      contextify($cx->[2], $active, $exp),
     ];
-    my @items = map { int rand 10 } 0 .. rand 3;
+    my @items = map $integer++, 0 .. ($items++ % 3);
     my $list  = join ', ', @items;
     push @res, [
      $blk->[0] . $cx->[0] . "($list, $code)" . $cx->[1] . $blk->[1],
