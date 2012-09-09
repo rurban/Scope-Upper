@@ -337,6 +337,16 @@ typedef struct {
  OP       proxy_op;
 } su_unwind_storage;
 
+/* --- yield() global storage ---------------------------------------------- */
+
+typedef struct {
+ I32      cxix;
+ I32      items;
+ SV     **savesp;
+ UNOP     leave_op;
+ OP       proxy_op;
+} su_yield_storage;
+
 /* --- uplevel() data tokens and global storage ---------------------------- */
 
 #define SU_UPLEVEL_HIJACKS_RUNOPS SU_HAS_PERL(5, 8, 0)
@@ -434,6 +444,7 @@ typedef struct {
 typedef struct {
  char               *stack_placeholder;
  su_unwind_storage   unwind_storage;
+ su_yield_storage    yield_storage;
  su_uplevel_storage  uplevel_storage;
  su_uid_storage      uid_storage;
 } my_cxt_t;
@@ -906,12 +917,10 @@ done:
 
 /* --- Pop a context back -------------------------------------------------- */
 
-#if SU_DEBUG
-# ifdef DEBUGGING
-#  define SU_CXNAME(C) PL_block_type[CxTYPE(C)]
-# else
-#  define SU_CXNAME(C) "XXX"
-# endif
+#if SU_DEBUG && defined(DEBUGGING)
+# define SU_CXNAME(C) PL_block_type[CxTYPE(C)]
+#else
+# define SU_CXNAME(C) "XXX"
 #endif
 
 STATIC void su_pop(pTHX_ void *ud) {
@@ -1098,6 +1107,186 @@ STATIC void su_unwind(pTHX_ void *ud_) {
 
  MY_CXT.unwind_storage.proxy_op.op_next = PL_op;
  PL_op = &(MY_CXT.unwind_storage.proxy_op);
+}
+
+/* --- Yield --------------------------------------------------------------- */
+
+#if SU_HAS_PERL(5, 10, 0)
+# define SU_RETOP_SUB(C)   ((C)->blk_sub.retop)
+# define SU_RETOP_EVAL(C)  ((C)->blk_eval.retop)
+# define SU_RETOP_LOOP(C)  ((C)->blk_loop.my_op->op_lastop->op_next)
+# define SU_RETOP_GIVEN(C) ((C)->blk_givwhen.leave_op->op_next)
+#else
+# define SU_RETOP_SUB(C)  ((C)->blk_oldretsp > 0 ? PL_retstack[(C)->blk_oldretsp - 1] : NULL)
+# define SU_RETOP_EVAL(C) SU_RETOP_SUB(C)
+# define SU_RETOP_LOOP(C) ((C)->blk_loop.last_op->op_next)
+#endif
+
+STATIC void su_yield(pTHX_ void *ud_) {
+ dMY_CXT;
+ PERL_CONTEXT *cx;
+ I32 cxix      = MY_CXT.yield_storage.cxix;
+ I32 items     = MY_CXT.yield_storage.items - 1;
+ SV **savesp   = MY_CXT.yield_storage.savesp;
+ opcode  type  = OP_NULL;
+ U8      flags = 0;
+ OP     *next;
+
+ PERL_UNUSED_VAR(ud_);
+
+ if (savesp)
+  PL_stack_sp = savesp;
+
+ cx = cxstack + cxix;
+ switch (CxTYPE(cx)) {
+  case CXt_BLOCK: {
+   I32 i, cur = cxstack_ix, n = 1;
+   OP *o = NULL;
+   /* Is this actually a given/when block? This may occur only when yield was
+    * called with HERE (or nothing) as the context. */
+#if SU_HAS_PERL(5, 10, 0)
+   if (cxix > 0) {
+    PERL_CONTEXT *prev = cx - 1;
+    U8 type = CxTYPE(prev);
+    if ((type == CXt_GIVEN || type == CXt_WHEN)
+        && (prev->blk_oldcop == cx->blk_oldcop)) {
+     cxix--;
+     cx = prev;
+     if (type == CXt_GIVEN)
+      goto cxt_given;
+     else
+      goto cxt_when;
+    }
+   }
+#endif
+   type  = OP_LEAVE;
+   next  = NULL;
+   /* Bare blocks (that appear as do { ... } blocks, map { ... } blocks or
+    * constant folded blcoks) don't need to save the op to return to anywhere
+    * since 'last' isn't supposed to work inside them. So we climb higher in
+    * the context stack until we reach a context that has a return op (i.e. a
+    * sub, an eval, a format or a real loop), recording how many blocks we
+    * crossed. Then we follow the op_next chain until we get to the leave op
+    * that closes the original block, which we are assured to reach since
+    * everything is static (the blocks we have crossed cannot be evals or
+    * subroutine calls). */
+   for (i = cxix + 1; i <= cur; ++i) {
+    PERL_CONTEXT *cx2 = cxstack + i;
+    switch (CxTYPE(cx2)) {
+     case CXt_BLOCK:
+      ++n;
+      break;
+     case CXt_SUB:
+     case CXt_FORMAT:
+      o = SU_RETOP_SUB(cx2);
+      break;
+     case CXt_EVAL:
+      o = SU_RETOP_EVAL(cx2);
+      break;
+#if SU_HAS_PERL(5, 11, 0)
+     case CXt_LOOP_FOR:
+     case CXt_LOOP_PLAIN:
+     case CXt_LOOP_LAZYSV:
+     case CXt_LOOP_LAZYIV:
+#else
+     case CXt_LOOP:
+#endif
+      o = SU_RETOP_LOOP(cx2);
+      break;
+    }
+    if (o)
+     break;
+   }
+   if (!o)
+    o = PL_op;
+   while (n && o) {
+    /* We may find other enter/leave blocks on our way to the matching leave.
+     * Make sure the depth is incremented/decremented appropriately. */
+    if (o->op_type == OP_ENTER) {
+     ++n;
+    } else if (o->op_type == OP_LEAVE) {
+     --n;
+     if (!n) {
+      next = o->op_next;
+      break;
+     }
+    }
+    o = o->op_next;
+   }
+   break;
+  }
+  case CXt_SUB:
+  case CXt_FORMAT:
+   type = OP_LEAVESUB;
+   next = SU_RETOP_SUB(cx);
+   break;
+  case CXt_EVAL:
+   type = CxTRYBLOCK(cx) ? OP_LEAVETRY : OP_LEAVEEVAL;
+   next = SU_RETOP_EVAL(cx);
+   break;
+#if SU_HAS_PERL(5, 11, 0)
+  case CXt_LOOP_FOR:
+  case CXt_LOOP_PLAIN:
+  case CXt_LOOP_LAZYSV:
+  case CXt_LOOP_LAZYIV:
+#else
+  case CXt_LOOP:
+#endif
+   type = OP_LEAVELOOP;
+   next = SU_RETOP_LOOP(cx);
+   break;
+#if SU_HAS_PERL(5, 10, 0)
+  case CXt_GIVEN:
+cxt_given:
+   type = OP_LEAVEGIVEN;
+   next = SU_RETOP_GIVEN(cx);
+   break;
+  case CXt_WHEN:
+cxt_when:
+#if SU_HAS_PERL(5, 15, 1)
+   type   = OP_LEAVEWHEN;
+#else
+   type   = OP_BREAK;
+   flags |= OPf_SPECIAL;
+#endif
+   next   = NULL;
+   break;
+#endif
+  case CXt_SUBST:
+   croak("yield() cannot target a substitution context");
+   break;
+  default:
+   croak("yield() don't know how to leave a %s context", SU_CXNAME(cxstack + cxix));
+   break;
+ }
+
+ if (cxstack_ix > cxix)
+  dounwind(cxix);
+
+ /* Hide the level */
+ if (items >= 0)
+  PL_stack_sp--;
+ else
+  items = 0;
+
+ /* Copy the arguments passed to yield() where the leave op expects to find
+  * them. */
+ if (items)
+  Move(PL_stack_sp - items + 1, PL_stack_base + cx->blk_oldsp + 1, items, SV *);
+ PL_stack_sp = PL_stack_base + cx->blk_oldsp + items;
+
+ flags |= OP_GIMME_REVERSE(cx->blk_gimme);
+
+ MY_CXT.yield_storage.leave_op.op_type   = type;
+ MY_CXT.yield_storage.leave_op.op_ppaddr = PL_ppaddr[type];
+ MY_CXT.yield_storage.leave_op.op_flags  = flags;
+ MY_CXT.yield_storage.leave_op.op_next   = next;
+
+ PL_op = (OP *) &(MY_CXT.yield_storage.leave_op);
+ PL_op = PL_op->op_ppaddr(aTHX);
+
+ MY_CXT.yield_storage.proxy_op.op_next = PL_op;
+ PL_op = &(MY_CXT.yield_storage.proxy_op);
 }
 
 /* --- Uplevel ------------------------------------------------------------- */
@@ -1938,6 +2127,14 @@ STATIC void su_setup(pTHX) {
  MY_CXT.unwind_storage.proxy_op.op_type   = OP_STUB;
  MY_CXT.unwind_storage.proxy_op.op_ppaddr = NULL;
 
+ Zero(&(MY_CXT.yield_storage.leave_op), 1, UNOP);
+ MY_CXT.yield_storage.leave_op.op_type   = OP_STUB;
+ MY_CXT.yield_storage.leave_op.op_ppaddr = NULL;
+
+ Zero(&(MY_CXT.yield_storage.proxy_op), 1, OP);
+ MY_CXT.yield_storage.proxy_op.op_type   = OP_STUB;
+ MY_CXT.yield_storage.proxy_op.op_ppaddr = NULL;
+
  MY_CXT.uplevel_storage.top   = NULL;
  MY_CXT.uplevel_storage.root  = NULL;
  MY_CXT.uplevel_storage.count = 0;
@@ -2026,6 +2223,34 @@ XS(XS_Scope__Upper_unwind) {
  croak("Can't return outside a subroutine");
 }
 
+XS(XS_Scope__Upper_yield); /* prototype to pass -Wmissing-prototypes */
+
+XS(XS_Scope__Upper_yield) {
+#ifdef dVAR
+ dVAR; dXSARGS;
+#else
+ dXSARGS;
+#endif
+ dMY_CXT;
+ I32 cxix;
+
+ PERL_UNUSED_VAR(cv); /* -W */
+ PERL_UNUSED_VAR(ax); /* -Wall */
+
+ SU_GET_CONTEXT(0, items - 1, su_context_here());
+ MY_CXT.yield_storage.cxix  = cxix;
+ MY_CXT.yield_storage.items = items;
+ /* See XS_Scope__Upper_unwind */
+ if (GIMME_V == G_SCALAR) {
+  MY_CXT.yield_storage.savesp = PL_stack_sp;
+  PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
+ } else {
+  MY_CXT.yield_storage.savesp = NULL;
+ }
+ SAVEDESTRUCTOR_X(su_yield, NULL);
+ return;
+}
+
 MODULE = Scope::Upper            PACKAGE = Scope::Upper
 
 PROTOTYPES: ENABLE
@@ -2044,6 +2269,7 @@ BOOT:
  newCONSTSUB(stash, "SU_THREADSAFE", newSVuv(SU_THREADSAFE));
 
  newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
+ newXSproto("Scope::Upper::yield",  XS_Scope__Upper_yield,  file, NULL);
 
  su_setup();
 }

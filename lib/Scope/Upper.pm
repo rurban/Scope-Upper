@@ -170,7 +170,7 @@ localize variables, array/hash values or deletions of elements in higher context
 
 =item *
 
-return values immediately to an upper level with L</unwind>, and know which context was in use then with L</want_at> ;
+return values immediately to an upper level with L</unwind> and L</yield>, and know which context was in use then with L</want_at> ;
 
 =item *
 
@@ -315,6 +315,30 @@ This means that
 
 will set C<$num> to C<'z'>.
 You can use L</want_at> to handle these cases.
+
+=head2 C<yield>
+
+    yield;
+    yield @values, $context;
+
+Returns C<@values> I<from> the context pointed by or just above C<$context>, and immediately restart the program flow at this point.
+If C<@values> is empty, then the C<$context> parameter is optional and defaults to the current context ; otherwise it is mandatory.
+
+L</yield> differs from L</unwind> in that it can target I<any> upper scope (besides a C<s///e> substitution context) and not necessarily a sub, an eval or a format.
+Hence you can use it to return values from a C<do> or a C<map> block :
+
+    my $now = do {
+     local $@;
+     eval { require Time::HiRes } or yield time() => HERE;
+     Time::HiRes::time();
+    };
+
+    my @uniq = map {
+     yield if $seen{$_}++; # returns the empty list from the block
+     ...
+    } @things;
+
+Like for L</unwind>, the upper context isn't coerced onto C<@values>.
 
 =head2 C<want_at>
 
@@ -591,13 +615,14 @@ Where L</localize>, L</localize_elem> and L</localize_delete> act depending on t
     # $cxt = SCOPE(4), UP SUB UP SUB = UP SUB EVAL = UP CALLER(2) = TOP
     ...
 
-Where L</unwind>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
+Where L</unwind>, L</yield>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
 
     sub {
      eval {
       sub {
        {
-        unwind @things => $cxt;   # or uplevel { ... } $cxt;
+        unwind @things => $cxt;   # or yield @things => $cxt
+                                  # or uplevel { ... } $cxt
         ...
        }
        ...
@@ -613,7 +638,7 @@ Where L</unwind>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
 
 =head1 EXPORT
 
-The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</want_at> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
+The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</yield>, L</want_at> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
 
 The constant L</SU_THREADSAFE> is also only exported on request, individually or by the tags C<':consts'> and C<':all'>.
 
@@ -628,7 +653,8 @@ our %EXPORT_TAGS = (
  funcs  => [ qw<
   reap
   localize localize_elem localize_delete
-  unwind want_at
+  unwind yield
+  want_at
   uplevel
   uid validate_uid
  > ],
