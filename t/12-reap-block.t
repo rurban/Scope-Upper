@@ -22,12 +22,12 @@ local $Scope::Upper::TestGenerator::test = sub {
  return "is(\$x, $j, 'x h=$height, l=$level, i=$i');\n";
 };
 
-local $Scope::Upper::TestGenerator::local = sub {
+local $Scope::Upper::TestGenerator::local_decl = sub {
  my ($height, $level, $i, $x) = @_;
  return $i == $height - $level ? "\$x = $x;\n" : "local \$x = $x;\n";
 };
 
-local $Scope::Upper::TestGenerator::testlocal = sub { '' };
+local $Scope::Upper::TestGenerator::local_test = sub { '' };
 
 local $Scope::Upper::TestGenerator::allblocks = 1;
 

@@ -10,11 +10,11 @@ use Scope::Upper qw<localize_elem UP HERE>;
 
 use Scope::Upper::TestGenerator;
 
-local $Scope::Upper::TestGenerator::testlocal = sub { '' };
+our $testcase;
+
+local $Scope::Upper::TestGenerator::local_test = sub { '' };
 
 local $Scope::Upper::TestGenerator::allblocks = 1;
-
-our $testcase;
 
 local $Scope::Upper::TestGenerator::call = sub {
  my ($height, $level, $i) = @_;
@@ -28,10 +28,7 @@ local $Scope::Upper::TestGenerator::test = sub {
  return "is(\$a[1], $j, 'x h=$height, l=$level, i=$i');\n";
 };
 
-local $Scope::Upper::TestGenerator::local = sub {
- my $x = $_[3];
- return "local \$a[1] = $x;\n";
-};
+local $Scope::Upper::TestGenerator::local_var = '$a[1]';
 
 our @a;
 
@@ -58,10 +55,7 @@ local $Scope::Upper::TestGenerator::test = sub {
  return "is(\$h{a}, $j, 'x h=$height, l=$level, i=$i');\n";
 };
 
-local $Scope::Upper::TestGenerator::local = sub {
- my $x = $_[3];
- return "local \$h{a} = $x;\n";
-};
+local $Scope::Upper::TestGenerator::local_var = '$h{a}';
 
 our %h;
 

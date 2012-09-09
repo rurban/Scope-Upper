@@ -3,17 +3,24 @@ package Scope::Upper::TestGenerator;
 use strict;
 use warnings;
 
-our ($call, $test, $local, $testlocal, $allblocks);
+our ($call, $test, $allblocks);
 
-$local = sub {
+our $local_var = '$x';
+
+our $local_decl = sub {
  my $x = $_[3];
- return "local \$x = $x;\n";
+ return "local $local_var = $x;\n";
 };
 
-$testlocal = sub {
+our $local_cond = sub {
+ my $x = $_[3];
+ return defined $x ? "($local_var eq $x)" : "(!defined($local_var))";
+};
+
+our $local_test = sub {
  my ($height, $level, $i, $x) = @_;
- my $j = defined $x ? $x : 'undef';
- return "is(\$x, $j, 'x h=$height, l=$level, i=$i');\n";
+ my $cond = $local_cond->(@_);
+ return "ok($cond, 'local h=$height, l=$level, i=$i');\n";
 };
 
 my @blocks = (
@@ -51,7 +58,7 @@ sub gen {
  my $up   = gen($height, $level, $i + 1, $x);
  for my $base (@$up) {
   for my $blk (@blks) {
-   push @res, $blk->[0] . $base . $test->(@_) . $testlocal->(@_) . $blk->[1];
+   push @res, $blk->[0] . $base . $test->(@_) . $local_test->(@_) . $blk->[1];
   }
  }
  $_[3] = $i + 1;
@@ -59,7 +66,7 @@ sub gen {
  for my $base (@$up) {
   for my $blk (@blks) {
    push @res, $blk->[0] .
-               $local->(@_) . $base . $test->(@_) . $testlocal->(@_)
+               $local_decl->(@_) . $base . $test->(@_) . $local_test->(@_)
               . $blk->[1];
   }
  }
