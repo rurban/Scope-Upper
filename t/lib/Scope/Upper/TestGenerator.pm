@@ -51,25 +51,37 @@ sub _block {
 
 sub gen {
  my ($height, $level, $i, $x) = @_;
- push @_, $i = 0 if @_ == 2;
+
+ if (@_ == 2) {
+  $i = 0;
+  push @_, $i;
+ }
+
  return $call->(@_) if $height < $i;
+
  my @res;
  my @blks = $allblocks ? @blocks : _block(@_);
+
  my $up   = gen($height, $level, $i + 1, $x);
+ my $t    = $test->(@_);
+ my $loct = $local_test->(@_);
  for my $base (@$up) {
   for my $blk (@blks) {
-   push @res, $blk->[0] . $base . $test->(@_) . $local_test->(@_) . $blk->[1];
+   push @res, join '', $blk->[0], $base, $t, $loct, $blk->[1];
   }
  }
- $_[3] = $i + 1;
- $up = gen($height, $level, $i + 1, $i + 1);
+
+ $_[3]    = $x = $i + 1;
+ $up      = gen($height, $level, $i + 1, $x);
+ $t       = $test->(@_);
+ my $locd = $local_decl->(@_);
+ $loct    = $local_test->(@_);
  for my $base (@$up) {
   for my $blk (@blks) {
-   push @res, $blk->[0] .
-               $local_decl->(@_) . $base . $test->(@_) . $local_test->(@_)
-              . $blk->[1];
+   push @res, join '', $blk->[0], $locd, $base, $t, $loct, $blk->[1];
   }
  }
+
  return \@res;
 }
 
