@@ -8,12 +8,25 @@ use Test::Leaner 'no_plan';
 
 use Scope::Upper qw<unwind UP HERE>;
 
-our ($call, @args);
+# perl 5.8.0 is not happy when @args is a lexical, so we have to use a global.
+# It's slightly faster too.
 
-$call = sub {
+our @args;
+
+my $args_code;
+if ("$]" < 5.008) {
+ # perl 5.6.x is really bad at closures, hence make it compile a function call
+ # instead.
+ *_get_args = sub { @args };
+ $args_code = '_get_args()';
+} else {
+ $args_code = '@args';
+}
+
+my $call = sub {
  my ($height, $level, $i) = @_;
  $level = $level ? 'UP ' x $level : 'HERE';
- return [ [ "unwind(\@args => $level)\n", [ \@args ] ] ];
+ return [ [ "unwind($args_code => $level)\n", [ \@args ] ] ];
 };
 
 # @_[0 .. $#_] also ought to work, but it sometimes evaluates to nonsense in
@@ -99,35 +112,37 @@ sub expect {
  return linearize @acc;
 }
 
-sub runtests {
- my ($height, $level) = @_;
- my $i;
- my $tests = gen @_;
- for (@$tests) {
-  ++$i;
-  no warnings 'void';
-  my $res = linearize eval $_->[0];
-  my $exp;
-  if ($@) {
-   $res = '*TEST DID NOT COMPILE*';
-  } else {
-   $exp = expect $_->[1];
-  }
-  if ($res ne $exp) {
-   diag <<DIAG;
+my @arg_lists = ([ ], [ 'A' ], [ qw<B C> ]);
+
+for my $height (0 .. 1) {
+ for my $level (0 .. 1) {
+  my $i;
+  my $tests = gen $height, $level;
+  for (@$tests) {
+   my ($code, $exp_spec) = @$_;
+   ++$i;
+   my $desc = "stress unwind $height $level $i";
+   my $cb = do {
+    no warnings 'void';
+    eval "sub { $code }";
+   };
+   if ($@) {
+    fail "$desc : test did not compile" for 1 .. @arg_lists;
+   } else {
+    for (@arg_lists) {
+     @args = @$_;
+     my $res = linearize $cb->();
+     my $exp = expect $exp_spec;
+     if ($res ne $exp) {
+      diag <<DIAG;
 === This testcase failed ===
-$_->[0];
+$code;
 ==== vvvvv Errors vvvvvv ===
 DIAG
+     }
+     is $res, $exp, "$desc [@args]";
+    }
+   }
   }
-  is $res, $exp, "stress unwind $height $level $i";
  }
-}
-
-for ([ ], [ 'A' ], [ qw<B C> ]) {
- @args = @$_;
- runtests 0, 0;
- runtests 0, 1;
- runtests 1, 0;
- runtests 1, 1;
 }
