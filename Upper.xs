@@ -133,6 +133,22 @@ STATIC SV *su_newSV_type(pTHX_ svtype t) {
 # define gv_fetchpvn_flags(A, B, C, D) gv_fetchpv((A), (C), (D))
 #endif
 
+#ifndef OP_GIMME_REVERSE
+STATIC U8 su_op_gimme_reverse(U8 gimme) {
+ switch (gimme) {
+  case G_VOID:
+   return OPf_WANT_VOID;
+  case G_ARRAY:
+   return OPf_WANT_LIST;
+  default:
+   break;
+ }
+
+ return OPf_WANT_SCALAR;
+}
+#define OP_GIMME_REVERSE(G) su_op_gimme_reverse(G)
+#endif
+
 #ifndef PERL_MAGIC_tied
 # define PERL_MAGIC_tied 'P'
 #endif
@@ -1099,22 +1115,6 @@ STATIC void su_unwind(pTHX_ void *ud_) {
 }
 
 /* --- Uplevel ------------------------------------------------------------- */
-
-#ifndef OP_GIMME_REVERSE
-STATIC U8 su_op_gimme_reverse(U8 gimme) {
- switch (gimme) {
-  case G_VOID:
-   return OPf_WANT_VOID;
-  case G_ARRAY:
-   return OPf_WANT_LIST;
-  default:
-   break;
- }
-
- return OPf_WANT_SCALAR;
-}
-#define OP_GIMME_REVERSE(G) su_op_gimme_reverse(G)
-#endif
 
 #define SU_UPLEVEL_SAVE(f, t) STMT_START { sud->old_##f = PL_##f; PL_##f = (t); } STMT_END
 #define SU_UPLEVEL_RESTORE(f) STMT_START { PL_##f = sud->old_##f; } STMT_END
