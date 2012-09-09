@@ -16,15 +16,24 @@ sub import {
  }
 }
 
-sub skip_all {
- my ($msg) = @_;
- require Test::More;
- Test::More::plan(skip_all => $msg);
-}
+my $test_sub = sub {
+ my $sub = shift;
+ my $stash;
+ if ($INC{'Test/Leaner.pm'}) {
+  $stash = \%Test::Leaner::;
+ } else {
+  require Test::More;
+  $stash = \%Test::More::;
+ }
+ my $glob = $stash->{$sub};
+ return $glob ? *$glob{CODE} : undef;
+};
+
+sub skip_all { $test_sub->('plan')->(skip_all => $_[0]) }
 
 sub diag {
- require Test::More;
- Test::More::diag($_) for @_;
+ my $diag = $test_sub->('diag');
+ $diag->($_) for @_;
 }
 
 our $TODO;
@@ -51,6 +60,8 @@ IMPORTER
   }
   diag "Using $pkg $ver";
  } else {
+  (my $file = "$pkg.pm") =~ s{::}{/}g;
+  delete $INC{$file};
   skip_all "$spec $desc";
  }
 }
