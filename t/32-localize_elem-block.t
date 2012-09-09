@@ -25,7 +25,7 @@ local $Scope::Upper::TestGenerator::call = sub {
 local $Scope::Upper::TestGenerator::test = sub {
  my ($height, $level, $i, $x) = @_;
  my $j = ($i == $height - $level) ? 0 : (defined $x ? $x : 11);
- return "is(\$a[1], $j, 'x h=$height, l=$level, i=$i');\n";
+ return "verbose_is(\$a[1], $j, 'x h=$height, l=$level, i=$i');\n";
 };
 
 local $Scope::Upper::TestGenerator::local_var = '$a[1]';
@@ -35,10 +35,9 @@ our @a;
 for my $level (0 .. 1) {
  my $height = $level + 1;
  my $tests = Scope::Upper::TestGenerator::gen($height, $level);
- for (@$tests) {
-  $testcase = $_;
+ for $testcase (@$tests) {
   @a = (10, 11);
-  eval;
+  eval $testcase;
   diag $@ if $@;
  }
 }
@@ -52,7 +51,7 @@ local $Scope::Upper::TestGenerator::call = sub {
 local $Scope::Upper::TestGenerator::test = sub {
  my ($height, $level, $i, $x) = @_;
  my $j = ($i == $height - $level) ? 0 : (defined $x ? $x : 'undef');
- return "is(\$h{a}, $j, 'x h=$height, l=$level, i=$i');\n";
+ return "verbose_is(\$h{a}, $j, 'x h=$height, l=$level, i=$i');\n";
 };
 
 local $Scope::Upper::TestGenerator::local_var = '$h{a}';
@@ -62,10 +61,9 @@ our %h;
 for my $level (0 .. 1) {
  my $height = $level + 1;
  my $tests = Scope::Upper::TestGenerator::gen($height, $level);
- for (@$tests) {
-  $testcase = $_;
+ for $testcase (@$tests) {
   %h = ();
-  eval;
+  eval $testcase;
   diag $@ if $@;
  }
 }

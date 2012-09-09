@@ -32,15 +32,42 @@ my @blocks = (
  [ 'eval q[',   '];' ],
 );
 
+push @blocks, [ 'given (1) {', '}' ] if "$]" >= 5.010_001;
+
+my %exports = (
+ verbose_is => \&verbose_is,
+);
+
 sub import {
  if ("$]" >= 5.010_001) {
-  push @blocks, [ 'given (1) {', '}' ];
   require feature;
   feature->import('switch');
+ }
+
+ my $pkg = caller;
+ while (my ($name, $code) = each %exports) {
+  no strict 'refs';
+  *{$pkg.'::'.$name} = $code;
  }
 }
 
 @blocks = map [ map "$_\n", @$_ ], @blocks;
+
+sub verbose_is ($$;$) {
+ my ($a, $b, $desc) = @_;
+
+ if (defined $::testcase
+      and (defined $b) ? (not defined $a or $a ne $b) : defined $a) {
+  Test::Leaner::diag(<<DIAG);
+=== This testcase failed ===
+$::testcase
+==== vvvvv Errors vvvvvv ===
+DIAG
+  undef $::testcase;
+ }
+
+ Test::Leaner::is($a, $b, $desc);
+}
 
 sub _block {
  my ($height, $level, $i) = @_;
