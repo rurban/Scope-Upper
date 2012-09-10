@@ -77,7 +77,8 @@ is do { local $@; eval { depth() } }, 1, 'check eval block depth';
   }->();
   fail "$desc: not reached 2";
  ];
- like $@, qr/^onion at \(eval \d+\) line 8/, "$desc: correct exception";
+ my $loc = $^P ? "[$0:" . (__LINE__-14) . ']' : '';
+ like $@, qr/^onion at \(eval \d+\)\Q$loc\E line 8/, "$desc: correct exception";
 }
 
 {
@@ -145,7 +146,9 @@ is do { local $@; eval { depth() } }, 1, 'check eval block depth';
   }->();
   fail "$desc: not reached 3";
  };
- like $@, qr/^ravioli at \(eval \d+\) line 7/, "$desc: correct exception";
+ my $loc = $^P ? "[$0:" . (__LINE__-15) . ']' : '';
+ like $@, qr/^ravioli at \(eval \d+\)\Q$loc\E line 7/,
+                                                     "$desc: correct exception";
 }
 our $hurp;
 
@@ -318,8 +321,9 @@ sub clash {
    &uplevel(\&uplevel => \1, HERE);
   }->();
  };
- my $line = __LINE__-2; # The error happens at the target frame.
+ my $line = $^P ? '\d+' : __LINE__-2; # The error happens at the target frame.
+ my $file = $^P ? '\S+' : quotemeta $0;
  like $@,
-   qr/^First argument to uplevel must be a code reference at \Q$0\E line $line/,
+   qr/^First argument to uplevel must be a code reference at $file line $line/,
    "$desc: correct error";
 }
