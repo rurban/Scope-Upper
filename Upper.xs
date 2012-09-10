@@ -995,19 +995,6 @@ STATIC I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  for (i = cxstack_ix; i > cxix; --i) {
   PERL_CONTEXT *cx = cxstack + i;
   switch (CxTYPE(cx)) {
-#if SU_HAS_PERL(5, 10, 0)
-   case CXt_BLOCK:
-    SU_D(PerlIO_printf(Perl_debug_log, "%p: cx %d is block\n", ud, i));
-    /* Given and when blocks are actually followed by a simple block, so skip
-     * it if needed. */
-    if (cxix > 0) { /* Implies i > 0 */
-     PERL_CONTEXT *next = cx - 1;
-     if (CxTYPE(next) == CXt_GIVEN || CxTYPE(next) == CXt_WHEN)
-      --cxix;
-    }
-    depth++;
-    break;
-#endif
 #if SU_HAS_PERL(5, 11, 0)
    case CXt_LOOP_FOR:
    case CXt_LOOP_PLAIN:
@@ -1798,6 +1785,84 @@ STATIC int su_uid_validate(pTHX_ SV *uid) {
  return su_uid_storage_check(depth, seq);
 }
 
+/* --- Context operations -------------------------------------------------- */
+
+#if SU_HAS_PERL(5, 8, 9)
+# define SU_SKIP_DB_MAX 2
+#else
+# define SU_SKIP_DB_MAX 3
+#endif
+
+/* Skip context sequences of 1 to SU_SKIP_DB_MAX (included) block contexts
+ * followed by a DB sub */
+
+#define SU_SKIP_DB(C) \
+ STMT_START {         \
+  I32 skipped = 0;    \
+  PERL_CONTEXT *base = cxstack;      \
+  PERL_CONTEXT *cx   = base + (C);   \
+  while (cx >= base && (C) > skipped && CxTYPE(cx) == CXt_BLOCK) \
+   --cx, ++skipped;                  \
+  if (cx >= base && (C) > skipped) { \
+   switch (CxTYPE(cx)) {  \
+    case CXt_SUB:         \
+     if (skipped <= SU_SKIP_DB_MAX && cx->blk_sub.cv == GvCV(PL_DBsub)) \
+      (C) -= skipped + 1; \
+      break;              \
+    default:              \
+     break;               \
+   }                      \
+  }                       \
+ } STMT_END
+
+STATIC I32 su_context_up(pTHX_ I32 cxix) {
+#define su_context_up(C) su_context_up(aTHX_ (C))
+ PERL_CONTEXT *cx;
+
+ if (cxix <= 0)
+  return 0;
+
+ cx = cxstack + cxix;
+ if (CxTYPE(cx) == CXt_BLOCK) {
+  PERL_CONTEXT *prev = cx - 1;
+
+  switch (CxTYPE(prev)) {
+#if SU_HAS_PERL(5, 10, 0)
+   case CXt_GIVEN:
+   case CXt_WHEN:
+#endif
+#if SU_HAS_PERL(5, 11, 0)
+   /* That's the only subcategory that can cause an extra BLOCK context */
+   case CXt_LOOP_PLAIN:
+#else
+   case CXt_LOOP:
+#endif
+    if (cx->blk_oldcop == prev->blk_oldcop)
+     cxix -= 2;
+    else
+     --cxix;
+    break;
+   case CXt_SUBST:
+    if (cx->blk_oldcop && cx->blk_oldcop->op_sibling
+                       && cx->blk_oldcop->op_sibling->op_type == OP_SUBST)
+     cxix -= 2;
+    else
+     --cxix;
+    break;
+   default:
+    --cxix;
+    break;
+  }
+ } else {
+  --cxix;
+ }
+
+ if (PL_DBsub)
+  SU_SKIP_DB(cxix);
+
+ return cxix;
+}
+
 /* --- Interpreter setup/teardown ------------------------------------------ */
 
 STATIC void su_teardown(pTHX_ void *param) {
@@ -1855,34 +1920,6 @@ STATIC void su_setup(pTHX) {
 }
 
 /* --- XS ------------------------------------------------------------------ */
-
-#if SU_HAS_PERL(5, 8, 9)
-# define SU_SKIP_DB_MAX 2
-#else
-# define SU_SKIP_DB_MAX 3
-#endif
-
-/* Skip context sequences of 1 to SU_SKIP_DB_MAX (included) block contexts
- * followed by a DB sub */
-
-#define SU_SKIP_DB(C) \
- STMT_START {         \
-  I32 skipped = 0;    \
-  PERL_CONTEXT *base = cxstack;      \
-  PERL_CONTEXT *cx   = base + (C);   \
-  while (cx >= base && (C) > skipped && CxTYPE(cx) == CXt_BLOCK) \
-   --cx, ++skipped;                  \
-  if (cx >= base && (C) > skipped) { \
-   switch (CxTYPE(cx)) {  \
-    case CXt_SUB:         \
-     if (skipped <= SU_SKIP_DB_MAX && cx->blk_sub.cv == GvCV(PL_DBsub)) \
-      (C) -= skipped + 1; \
-      break;              \
-    default:              \
-     break;               \
-   }                      \
-  }                       \
- } STMT_END
 
 #define SU_GET_CONTEXT(A, B)   \
  STMT_START {                  \
@@ -2026,10 +2063,7 @@ PREINIT:
  I32 cxix;
 PPCODE:
  SU_GET_CONTEXT(0, 0);
- if (--cxix < 0)
-  cxix = 0;
- if (PL_DBsub)
-  SU_SKIP_DB(cxix);
+ cxix = su_context_up(cxix);
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);
@@ -2084,19 +2118,10 @@ PREINIT:
 PPCODE:
  SU_GET_LEVEL(0, 0);
  cxix = cxstack_ix;
- if (PL_DBsub) {
+ if (PL_DBsub)
   SU_SKIP_DB(cxix);
-  while (cxix > 0) {
-   if (--level < 0)
-    break;
-   --cxix;
-   SU_SKIP_DB(cxix);
-  }
- } else {
-  cxix -= level;
-  if (cxix < 0)
-   cxix = 0;
- }
+ while (--level >= 0)
+  cxix = su_context_up(cxix);
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);
