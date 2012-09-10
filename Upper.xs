@@ -1787,33 +1787,39 @@ STATIC int su_uid_validate(pTHX_ SV *uid) {
 
 /* --- Context operations -------------------------------------------------- */
 
-#if SU_HAS_PERL(5, 8, 9)
-# define SU_SKIP_DB_MAX 2
-#else
-# define SU_SKIP_DB_MAX 3
-#endif
+/* Remove sequences of BLOCKs having DB for stash, followed by a SUB context
+ * for the debugger callback. */
 
-/* Skip context sequences of 1 to SU_SKIP_DB_MAX (included) block contexts
- * followed by a DB sub */
+STATIC I32 su_context_skip_db(pTHX_ I32 cxix) {
+#define su_context_skip_db(C) su_context_skip_db(aTHX_ (C))
+ I32 i;
 
-#define SU_SKIP_DB(C) \
- STMT_START {         \
-  I32 skipped = 0;    \
-  PERL_CONTEXT *base = cxstack;      \
-  PERL_CONTEXT *cx   = base + (C);   \
-  while (cx >= base && (C) > skipped && CxTYPE(cx) == CXt_BLOCK) \
-   --cx, ++skipped;                  \
-  if (cx >= base && (C) > skipped) { \
-   switch (CxTYPE(cx)) {  \
-    case CXt_SUB:         \
-     if (skipped <= SU_SKIP_DB_MAX && cx->blk_sub.cv == GvCV(PL_DBsub)) \
-      (C) -= skipped + 1; \
-      break;              \
-    default:              \
-     break;               \
-   }                      \
-  }                       \
- } STMT_END
+ if (!PL_DBsub)
+  return cxix;
+
+ for (i = cxix; i > 0; --i) {
+  PERL_CONTEXT *cx = cxstack + i;
+
+  switch (CxTYPE(cx)) {
+   case CXt_BLOCK:
+    if (cx->blk_oldcop && CopSTASH(cx->blk_oldcop) == GvSTASH(PL_DBgv))
+     continue;
+    break;
+   case CXt_SUB:
+    if (cx->blk_sub.cv == GvCV(PL_DBsub)) {
+     cxix = i - 1;
+     continue;
+    }
+    break;
+   default:
+    break;
+  }
+
+  break;
+ }
+
+ return cxix;
+}
 
 STATIC I32 su_context_up(pTHX_ I32 cxix) {
 #define su_context_up(C) su_context_up(aTHX_ (C))
@@ -1856,9 +1862,6 @@ STATIC I32 su_context_up(pTHX_ I32 cxix) {
  } else {
   --cxix;
  }
-
- if (PL_DBsub)
-  SU_SKIP_DB(cxix);
 
  return cxix;
 }
@@ -1935,8 +1938,6 @@ STATIC void su_setup(pTHX) {
   } else {                     \
 default_cx:                    \
    cxix = cxstack_ix;          \
-   if (PL_DBsub)               \
-    SU_SKIP_DB(cxix);          \
   }                            \
  } STMT_END
 
@@ -1968,6 +1969,7 @@ XS(XS_Scope__Upper_unwind) {
  PERL_UNUSED_VAR(ax); /* -Wall */
 
  SU_GET_CONTEXT(0, items - 1);
+ cxix = su_context_skip_db(cxix);
  do {
   PERL_CONTEXT *cx = cxstack + cxix;
   switch (CxTYPE(cx)) {
@@ -2048,10 +2050,9 @@ void
 HERE()
 PROTOTYPE:
 PREINIT:
- I32 cxix = cxstack_ix;
+ I32 cxix;
 PPCODE:
- if (PL_DBsub)
-  SU_SKIP_DB(cxix);
+ cxix = su_context_skip_db(cxstack_ix);
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);
@@ -2063,7 +2064,9 @@ PREINIT:
  I32 cxix;
 PPCODE:
  SU_GET_CONTEXT(0, 0);
+ cxix = su_context_skip_db(cxix);
  cxix = su_context_up(cxix);
+ cxix = su_context_skip_db(cxix);
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);
@@ -2117,11 +2120,11 @@ PREINIT:
  I32 cxix, level;
 PPCODE:
  SU_GET_LEVEL(0, 0);
- cxix = cxstack_ix;
- if (PL_DBsub)
-  SU_SKIP_DB(cxix);
- while (--level >= 0)
+ cxix = su_context_skip_db(cxstack_ix);
+ while (--level >= 0) {
   cxix = su_context_up(cxix);
+  cxix = su_context_skip_db(cxix);
+ }
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);
@@ -2163,6 +2166,8 @@ PPCODE:
   PERL_CONTEXT *cx = cxstack + cxix--;
   switch (CxTYPE(cx)) {
    case CXt_SUB:
+    if (PL_DBsub && cx->blk_sub.cv == GvCV(PL_DBsub))
+     continue;
    case CXt_EVAL:
    case CXt_FORMAT: {
     I32 gimme = cx->blk_gimme;
@@ -2185,6 +2190,7 @@ PREINIT:
  su_ud_reap *ud;
 CODE:
  SU_GET_CONTEXT(1, 1);
+ cxix = su_context_skip_db(cxix);
  Newx(ud, 1, su_ud_reap);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_reap;
@@ -2200,6 +2206,7 @@ PREINIT:
  su_ud_localize *ud;
 CODE:
  SU_GET_CONTEXT(2, 2);
+ cxix = su_context_skip_db(cxix);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
@@ -2218,6 +2225,7 @@ CODE:
   croak("Can't infer the element localization type from a glob and the value");
  SU_GET_CONTEXT(3, 3);
  Newx(ud, 1, su_ud_localize);
+ cxix = su_context_skip_db(cxix);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
  size = su_ud_localize_init(ud, sv, val, elem);
@@ -2236,6 +2244,7 @@ PREINIT:
  su_ud_localize *ud;
 CODE:
  SU_GET_CONTEXT(2, 2);
+ cxix = su_context_skip_db(cxix);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
@@ -2284,7 +2293,8 @@ PREINIT:
  SV *uid;
 PPCODE:
  SU_GET_CONTEXT(0, 0);
- uid = su_uid_get(cxix);
+ cxix = su_context_skip_db(cxix);
+ uid  = su_uid_get(cxix);
  EXTEND(SP, 1);
  PUSHs(uid);
  XSRETURN(1);
