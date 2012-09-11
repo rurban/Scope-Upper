@@ -286,7 +286,6 @@ STATIC void su_uid_storage_dup(pTHX_ su_uid_storage *new_cxt, const su_uid_stora
  if (old_map) {
   su_uid **new_map = new_cxt->map;
   STRLEN old_used  = old_cxt->used;
-  STRLEN old_alloc = old_cxt->alloc;
   STRLEN new_used, new_alloc;
   STRLEN i;
 
@@ -1172,7 +1171,7 @@ STATIC int su_uplevel_goto_static(const OP *o) {
    case OP_GOTO:
     return 1;
    default:
-    if (su_uplevel_goto_static(cUNOPo->op_first))
+    if (su_uplevel_goto_static(((const UNOP *) o)->op_first))
      return 1;
     break;
   }
