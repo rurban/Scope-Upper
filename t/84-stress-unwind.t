@@ -6,28 +6,7 @@ use warnings;
 use lib 't/lib';
 use Test::Leaner 'no_plan';
 
-use Scope::Upper qw<unwind UP HERE>;
-
-# perl 5.8.0 is not happy when @args is a lexical, so we have to use a global.
-# It's slightly faster too.
-
-our @args;
-
-my $args_code;
-if ("$]" < 5.008) {
- # perl 5.6.x is really bad at closures, hence make it compile a function call
- # instead.
- *_get_args = sub { @args };
- $args_code = '_get_args()';
-} else {
- $args_code = '@args';
-}
-
-my $call = sub {
- my ($height, $level, $i) = @_;
- $level = $level ? 'UP ' x $level : 'HERE';
- return [ [ "unwind($args_code => $level)\n", [ \@args ] ] ];
-};
+use Scope::Upper qw<unwind HERE SCOPE>;
 
 # @_[0 .. $#_] also ought to work, but it sometimes evaluates to nonsense in
 # scalar context on perl 5.8.5 and below.
@@ -35,8 +14,15 @@ my $call = sub {
 sub list { wantarray ? @_ : $_[$#_] }
 
 my @blocks = (
- [ 'sub {',     '}->()' ],
- [ 'eval {',    '}' ],
+ [
+   'sub {
+     my $next = shift;',
+   '}->($next, @_)'
+ ],
+ [
+   'eval {',
+   '}'
+ ],
 );
 
 my @contexts = (
@@ -45,102 +31,108 @@ my @contexts = (
  [ 'list(',   ')',    'l' ],
 );
 
-for my $block (@blocks) {
- $_ .= "\n" for @$block[0, 1];
-}
-for my $cxt (@contexts) {
- $_ .= "\n" for @$cxt[0, 1];
-}
-
-sub contextify {
- my ($cxt, $active, $exp, @items) = @_;
- return $exp unless $active;
- if ($cxt eq 'v') {
-  return [ ];
- } elsif ($cxt eq 's') {
-  return [ $cxt, @$exp ];
- } else {
-  return [ @items, @$exp ];
- }
-}
-
-my $integer = 0;
-my $items   = 0;
-
-sub gen {
- my ($height, $level, $i) = @_;
- push @_, $i = 0 if @_ == 2;
- my @res;
- my $up = $i == $height + 1 ? $call->(@_) : gen($height, $level, $i + 1);
- my $active = $i <= ($height - $level);
- for my $base (@$up) {
-  my ($code, $exp) = @$base;
-  for my $blk (@blocks) {
-   for my $cx (@contexts) {
-    push @res, [
-     $blk->[0] . $cx->[0] . $code . $cx->[1] . $blk->[1],
-     contextify($cx->[2], $active, $exp),
-    ];
-    my @items = map $integer++, 0 .. ($items++ % 3);
-    my $list  = join ', ', @items;
-    push @res, [
-     $blk->[0] . $cx->[0] . "($list, $code)" . $cx->[1] . $blk->[1],
-     contextify($cx->[2], $active, $exp, @items),
-    ];
-   }
-  }
- }
- return \@res;
-}
-
 sub linearize { join ', ', map { defined($_) ? $_ : '(undef)' } @_ }
 
-sub expect {
- my @spec = @{$_[0]};
- my @acc;
- for my $s (reverse @spec) {
-  if (ref $s) {
-   unshift @acc, @$s;
-  } elsif ($s =~ /^[0-9]+$/) {
-   unshift @acc, $s;
-  } elsif ($s eq 's') {
-   @acc = (@acc ? $acc[-1] : undef);
-  } else {
-   return 'XXX';
+our @stack;
+our @pre;
+
+# Don't put closures in empty pads on 5.6.
+
+my $dummy;
+my $capture_outer_pad = "$]" < 5.008 ? "++\$dummy;" : '';
+
+my @test_frames;
+
+for my $block (@blocks) {
+ for my $context (@contexts) {
+  my $source = <<"FRAME";
+   sub {
+    my \$next = shift; $capture_outer_pad
+    $block->[0]
+     unshift \@stack, HERE;
+     $context->[0]
+      (\@{shift \@pre}, \$next->[0]->(\@_))
+     $context->[1]
+    $block->[1]
+   }
+FRAME
+  my $code;
+  {
+   local $@;
+   $code = do {
+    no warnings 'void';
+    eval $source;
+   };
+   my $err = $@;
+   chomp $err;
+   die "$err. Source was :\n$source\n" if $@;
   }
+  push @test_frames, [ $code, $source, $context->[2] ];
  }
- return linearize @acc;
 }
 
-my @arg_lists = ([ ], [ 'A' ], [ qw<B C> ]);
+my @targets = (
+ [ sub {
+  my $depth = pop;
+  unshift @stack, HERE;
+  unwind(@_ => $stack[$depth]);
+ }, 'target context from HERE' ],
+ [ sub {
+  my $depth = pop;
+  unwind(@_ => SCOPE($depth == 0 ? 0 : (2 * ($depth - 1) + 1)));
+ }, 'target context from SCOPE' ],
+);
 
-for my $height (0 .. 1) {
- for my $level (0 .. 1) {
-  my $i;
-  my $tests = gen $height, $level;
-  for (@$tests) {
-   my ($code, $exp_spec) = @$_;
-   ++$i;
-   my $desc = "stress unwind $height $level $i";
-   my $cb = do {
-    no warnings 'void';
-    eval "sub { $code }";
-   };
-   if ($@) {
-    fail "$desc : test did not compile" for 1 .. @arg_lists;
-   } else {
-    for (@arg_lists) {
-     @args = @$_;
-     my $res = linearize $cb->();
-     my $exp = expect $exp_spec;
-     if ($res ne $exp) {
-      diag <<DIAG;
+my $seed = 0;
+
+for my $args ([ ], [ 'A' ], [ qw<B C> ]) {
+ my @args = @$args;
+ for my $frame0 (@test_frames) {
+  for my $frame1 (@test_frames) {
+   for my $frame2 (@test_frames) {
+    my $max_depth = 3;
+    $seed += 5; # Coprime with $max_depth
+    my @prepend;
+    for (1 .. $max_depth) {
+     ++$seed;
+     my $i = $seed + $_;
+     my $l = $seed % $max_depth - 1;
+     push @prepend, [ $i .. ($i + $l) ];
+    }
+    my $prepend_str = join ' ', map { '[' . join(' ', @$_) . ']' } @prepend;
+    for my $depth (0 .. $max_depth) {
+     my $exp = do {
+      my @cxts = map $_->[2], $frame0, $frame1, $frame2;
+      my @exp  = @args;
+      for (my $i = $depth + 1; $i <= $max_depth; ++$i) {
+       my $c = $cxts[$max_depth - $i];
+       if ($c eq 'v') {
+        @exp = ();
+       } elsif ($c eq 's') {
+        @exp = @exp ? $exp[-1] : undef;
+       } else {
+        unshift @exp, @{$prepend[$max_depth - $i]};
+       }
+      }
+      linearize @exp;
+     };
+     for my $target (@targets) {
+      local @stack;
+      local @pre = @prepend;
+      my @res = $frame0->[0]->($frame1, $frame2, $target, @args, $depth);
+      my $got = linearize @res;
+      if ($got ne $exp) {
+       diag <<DIAG;
 === This testcase failed ===
-$code;
+$frame0->[1]
+$frame1->[1]
+$frame2->[1]
+$target->[1]
 ==== vvvvv Errors vvvvvv ===
 DIAG
+      }
+      is $got, $exp, "unwind to depth $depth with args [@args] and prepending $prepend_str";
      }
-     is $res, $exp, "$desc [@args]";
     }
    }
   }
