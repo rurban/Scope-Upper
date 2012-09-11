@@ -1820,8 +1820,9 @@ STATIC I32 su_context_skip_db(pTHX_ I32 cxix) {
  return cxix;
 }
 
-STATIC I32 su_context_up(pTHX_ I32 cxix) {
-#define su_context_up(C) su_context_up(aTHX_ (C))
+
+STATIC I32 su_context_normalize_up(pTHX_ I32 cxix) {
+#define su_context_normalize_up(C) su_context_normalize_up(aTHX_ (C))
  PERL_CONTEXT *cx;
 
  if (cxix <= 0)
@@ -1843,27 +1844,56 @@ STATIC I32 su_context_up(pTHX_ I32 cxix) {
    case CXt_LOOP:
 #endif
     if (cx->blk_oldcop == prev->blk_oldcop)
-     cxix -= 2;
-    else
-     --cxix;
+     return cxix - 1;
     break;
    case CXt_SUBST:
     if (cx->blk_oldcop && cx->blk_oldcop->op_sibling
                        && cx->blk_oldcop->op_sibling->op_type == OP_SUBST)
-     cxix -= 2;
-    else
-     --cxix;
-    break;
-   default:
-    --cxix;
+     return cxix - 1;
     break;
   }
- } else {
-  --cxix;
  }
 
  return cxix;
 }
+
+STATIC I32 su_context_normalize_down(pTHX_ I32 cxix) {
+#define su_context_normalize_down(C) su_context_normalize_down(aTHX_ (C))
+ PERL_CONTEXT *next;
+
+ if (cxix >= cxstack_ix)
+  return cxstack_ix;
+
+ next = cxstack + cxix + 1;
+ if (CxTYPE(next) == CXt_BLOCK) {
+  PERL_CONTEXT *cx = next - 1;
+
+  switch (CxTYPE(cx)) {
+#if SU_HAS_PERL(5, 10, 0)
+   case CXt_GIVEN:
+   case CXt_WHEN:
+#endif
+#if SU_HAS_PERL(5, 11, 0)
+   /* That's the only subcategory that can cause an extra BLOCK context */
+   case CXt_LOOP_PLAIN:
+#else
+   case CXt_LOOP:
+#endif
+    if (cx->blk_oldcop == next->blk_oldcop)
+     return cxix + 1;
+    break;
+   case CXt_SUBST:
+    if (next->blk_oldcop && next->blk_oldcop->op_sibling
+                         && next->blk_oldcop->op_sibling->op_type == OP_SUBST)
+     return cxix + 1;
+    break;
+  }
+ }
+
+ return cxix;
+}
+
+#define su_context_here() su_context_normalize_up(su_context_skip_db(cxstack_ix))
 
 /* --- Interpreter setup/teardown ------------------------------------------ */
 
@@ -1923,21 +1953,21 @@ STATIC void su_setup(pTHX) {
 
 /* --- XS ------------------------------------------------------------------ */
 
-#define SU_GET_CONTEXT(A, B)   \
- STMT_START {                  \
-  if (items > A) {             \
-   SV *csv = ST(B);            \
-   if (!SvOK(csv))             \
-    goto default_cx;           \
-   cxix = SvIV(csv);           \
-   if (cxix < 0)               \
-    cxix = 0;                  \
-   else if (cxix > cxstack_ix) \
-    cxix = cxstack_ix;         \
-  } else {                     \
-default_cx:                    \
-   cxix = cxstack_ix;          \
-  }                            \
+#define SU_GET_CONTEXT(A, B, D) \
+ STMT_START {                   \
+  if (items > A) {              \
+   SV *csv = ST(B);             \
+   if (!SvOK(csv))              \
+    goto default_cx;            \
+   cxix = SvIV(csv);            \
+   if (cxix < 0)                \
+    cxix = 0;                   \
+   else if (cxix > cxstack_ix)  \
+    goto default_cx;            \
+  } else {                      \
+default_cx:                     \
+   cxix = (D);                  \
+  }                             \
  } STMT_END
 
 #define SU_GET_LEVEL(A, B) \
@@ -1967,8 +1997,7 @@ XS(XS_Scope__Upper_unwind) {
  PERL_UNUSED_VAR(cv); /* -W */
  PERL_UNUSED_VAR(ax); /* -Wall */
 
- SU_GET_CONTEXT(0, items - 1);
- cxix = su_context_skip_db(cxix);
+ SU_GET_CONTEXT(0, items - 1, cxstack_ix);
  do {
   PERL_CONTEXT *cx = cxstack + cxix;
   switch (CxTYPE(cx)) {
@@ -2051,7 +2080,7 @@ PROTOTYPE:
 PREINIT:
  I32 cxix;
 PPCODE:
- cxix = su_context_skip_db(cxstack_ix);
+ cxix = su_context_here();
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);
@@ -2062,10 +2091,12 @@ PROTOTYPE: ;$
 PREINIT:
  I32 cxix;
 PPCODE:
- SU_GET_CONTEXT(0, 0);
- cxix = su_context_skip_db(cxix);
- cxix = su_context_up(cxix);
- cxix = su_context_skip_db(cxix);
+ SU_GET_CONTEXT(0, 0, su_context_here());
+ if (cxix > 0) {
+  --cxix;
+  cxix = su_context_skip_db(cxix);
+  cxix = su_context_normalize_up(cxix);
+ }
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);
@@ -2076,7 +2107,7 @@ PROTOTYPE: ;$
 PREINIT:
  I32 cxix;
 PPCODE:
- SU_GET_CONTEXT(0, 0);
+ SU_GET_CONTEXT(0, 0, cxstack_ix);
  EXTEND(SP, 1);
  for (; cxix >= 0; --cxix) {
   PERL_CONTEXT *cx = cxstack + cxix;
@@ -2098,7 +2129,7 @@ PROTOTYPE: ;$
 PREINIT:
  I32 cxix;
 PPCODE:
- SU_GET_CONTEXT(0, 0);
+ SU_GET_CONTEXT(0, 0, cxstack_ix);
  EXTEND(SP, 1);
  for (; cxix >= 0; --cxix) {
   PERL_CONTEXT *cx = cxstack + cxix;
@@ -2119,10 +2150,13 @@ PREINIT:
  I32 cxix, level;
 PPCODE:
  SU_GET_LEVEL(0, 0);
- cxix = su_context_skip_db(cxstack_ix);
+ cxix = su_context_here();
  while (--level >= 0) {
-  cxix = su_context_up(cxix);
+  if (cxix <= 0)
+   break;
+  --cxix;
   cxix = su_context_skip_db(cxix);
+  cxix = su_context_normalize_up(cxix);
  }
  EXTEND(SP, 1);
  mPUSHi(cxix);
@@ -2159,7 +2193,7 @@ PROTOTYPE: ;$
 PREINIT:
  I32 cxix;
 PPCODE:
- SU_GET_CONTEXT(0, 0);
+ SU_GET_CONTEXT(0, 0, cxstack_ix);
  EXTEND(SP, 1);
  while (cxix > 0) {
   PERL_CONTEXT *cx = cxstack + cxix--;
@@ -2188,8 +2222,8 @@ PREINIT:
  I32 cxix;
  su_ud_reap *ud;
 CODE:
- SU_GET_CONTEXT(1, 1);
- cxix = su_context_skip_db(cxix);
+ SU_GET_CONTEXT(1, 1, su_context_skip_db(cxstack_ix));
+ cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_reap);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_reap;
@@ -2204,8 +2238,8 @@ PREINIT:
  I32 size;
  su_ud_localize *ud;
 CODE:
- SU_GET_CONTEXT(2, 2);
- cxix = su_context_skip_db(cxix);
+ SU_GET_CONTEXT(2, 2, su_context_skip_db(cxstack_ix));
+ cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
@@ -2222,9 +2256,9 @@ PREINIT:
 CODE:
  if (SvTYPE(sv) >= SVt_PVGV)
   croak("Can't infer the element localization type from a glob and the value");
- SU_GET_CONTEXT(3, 3);
+ SU_GET_CONTEXT(3, 3, su_context_skip_db(cxstack_ix));
+ cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
- cxix = su_context_skip_db(cxix);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
  size = su_ud_localize_init(ud, sv, val, elem);
@@ -2242,8 +2276,8 @@ PREINIT:
  I32 size;
  su_ud_localize *ud;
 CODE:
- SU_GET_CONTEXT(2, 2);
- cxix = su_context_skip_db(cxix);
+ SU_GET_CONTEXT(2, 2, su_context_skip_db(cxstack_ix));
+ cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
  SU_UD_ORIGIN(ud)  = NULL;
  SU_UD_HANDLER(ud) = su_localize;
@@ -2260,7 +2294,7 @@ PPCODE:
   code = SvRV(code);
  if (SvTYPE(code) < SVt_PVCV)
   croak("First argument to uplevel must be a code reference");
- SU_GET_CONTEXT(1, items - 1);
+ SU_GET_CONTEXT(1, items - 1, cxstack_ix);
  do {
   PERL_CONTEXT *cx = cxstack + cxix;
   switch (CxTYPE(cx)) {
@@ -2291,9 +2325,8 @@ PREINIT:
  I32 cxix;
  SV *uid;
 PPCODE:
- SU_GET_CONTEXT(0, 0);
- cxix = su_context_skip_db(cxix);
- uid  = su_uid_get(cxix);
+ SU_GET_CONTEXT(0, 0, su_context_here());
+ uid = su_uid_get(cxix);
  EXTEND(SP, 1);
  PUSHs(uid);
  XSRETURN(1);

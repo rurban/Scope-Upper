@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More;
 
-plan tests => 23 * ($^P ? 4 : 5) + ($^P ? 1 : 2) + 7 + 15 * 2;
+plan tests => 23 * ($^P ? 4 : 5) + ($^P ? 1 : 3) + 7 + 15 * 2;
 
 use Scope::Upper qw<:words>;
 
@@ -128,7 +128,7 @@ for (1 .. 1) {
 
 for (my $i = 0; $i < 1; ++$i) {
  my $desc = 'for (;;) { 1 }';
- is HERE, 2,     "$desc : here" unless $^P;
+ is HERE, 1,     "$desc : here" unless $^P;
  is TOP,  $top,  "$desc : top";
  is UP,   $top,  "$desc : up";
  is SUB,  undef, "$desc : sub";
@@ -149,11 +149,11 @@ while ($flag) {
 my @list = (1);
 while (my $thing = shift @list) {
  my $desc = 'while (my $thing = ...) { 2 }';
- is HERE, "$]" <= 5.008_008 ? 1 : 2, "$desc : here" unless $^P;
- is TOP,  $top,                      "$desc : top";
- is UP,   $top,                      "$desc : up";
- is SUB,  undef,                     "$desc : sub";
- is EVAL, undef,                     "$desc : eval";
+ is HERE, 1,     "$desc : here" unless $^P;
+ is TOP,  $top,  "$desc : top";
+ is UP,   $top,  "$desc : up";
+ is SUB,  undef, "$desc : sub";
+ is EVAL, undef, "$desc : eval";
 }
 
 do {
@@ -186,7 +186,7 @@ grep {
 my $var = 'a';
 $var =~ s{.}{
  my $desc = 'subst';
- is HERE, 2,     "$desc : here" unless $^P;
+ is HERE, 1,     "$desc : here" unless $^P;
  is TOP,  $top,  "$desc : top";
  is UP,   $top,  "$desc : up";
  is SUB,  undef, "$desc : sub";
@@ -199,7 +199,11 @@ is $var, $top, 'subst : fake block';
 
 $var = 'a';
 $var =~ s{.}{do { UP }}e;
-is $var, 2, 'subst : real block' unless $^P;
+is $var, 1, 'subst : do block optimized away' unless $^P;
+
+$var = 'a';
+$var =~ s{.}{do { my $x; UP }}e;
+is $var, 1, 'subst : do block preserved' unless $^P;
 
 SKIP: {
  skip 'Perl 5.10 required to test given/when' => 4 * ($^P ? 4 : 5)
@@ -210,7 +214,7 @@ SKIP: {
   my $desc = 'given';
   my $base = HERE;
   given (1) {
-   is HERE, $base + 2, "$desc : here" unless $^P;
+   is HERE, $base + 1, "$desc : here" unless $^P;
    is TOP,  $top,      "$desc : top";
    is UP,   $base,     "$desc : up";
    is SUB,  undef,     "$desc : sub";
@@ -226,7 +230,7 @@ TEST_GIVEN
   given (1) {
    my $given = HERE;
    when (1) {
-    is HERE, $base + 4, "$desc : here" unless $^P;
+    is HERE, $base + 3, "$desc : here" unless $^P;
     is TOP,  $top,      "$desc : top";
     is UP,   $given,    "$desc : up";
     is SUB,  undef,     "$desc : sub";
@@ -243,7 +247,7 @@ TEST_GIVEN_WHEN
   given (1) {
    my $given = HERE;
    default {
-    is HERE, $base + 4, "$desc : here" unless $^P;
+    is HERE, $base + 3, "$desc : here" unless $^P;
     is TOP,  $top,      "$desc : top";
     is UP,   $given,    "$desc : up";
     is SUB,  undef,     "$desc : sub";
@@ -260,7 +264,7 @@ TEST_GIVEN_DEFAULT
   for (1) {
    my $loop = HERE;
    when (1) {
-    is HERE, $base + 3, "$desc : here" unless $^P;
+    is HERE, $base + 2, "$desc : here" unless $^P;
     is TOP,  $top,      "$desc : top";
     is UP,   $loop,     "$desc : up";
     is SUB,  undef,     "$desc : sub";
