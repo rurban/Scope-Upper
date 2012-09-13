@@ -298,10 +298,11 @@ C<$key> is ignored.
 
 =head2 C<unwind>
 
-    unwind @values;
+    unwind;
     unwind @values, $context;
 
-Returns C<@values> I<from> the context pointed by C<$context>, i.e. from the subroutine, eval or format at or just above C<$context>, and immediately restart the program flow at this point - thus effectively returning to an upper scope.
+Returns C<@values> I<from> the subroutine, eval or format context pointed by or just above C<$context>, and immediately restart the program flow at this point - thus effectively returning C<@values> to an upper scope.
+If C<@values> is empty, then the C<$context> parameter is optional and defaults to the current context (making the call equivalent to a bare C<return;>) ; otherwise it is mandatory.
 
 The upper context isn't coerced onto C<@values>, which is hence always evaluated in list context.
 This means that
@@ -335,8 +336,7 @@ will rightfully set C<$num> to C<26>.
 =head2 C<uplevel>
 
     my @ret = uplevel { ...; return @ret };
-    my @ret = uplevel { my @args = @_; ...; return @ret } @args;
-    my @ret = uplevel { ... } @args, $context;
+    my @ret = uplevel { my @args = @_; ...; return @ret } @args, $context;
     my @ret = &uplevel($callback, @args, $context);
 
 Executes the code reference C<$callback> with arguments C<@args> as if it were located at the subroutine stack frame pointed by C<$context>, effectively fooling C<caller> and C<die> into believing that the call actually happened higher in the stack.
@@ -354,6 +354,8 @@ The code is executed in the context of the C<uplevel> call, and what it returns 
 
     my @inverses = target(1, 2, 4); # @inverses contains (0, 0.5, 0.25)
     my $count    = target(1, 2, 4); # $count is 3
+
+Note that if C<@args> is empty, then the C<$context> parameter is optional and defaults to the current context ; otherwise it is mandatory.
 
 L<Sub::Uplevel> also implements a pure-Perl version of C<uplevel>.
 Both are identical, with the following caveats :
