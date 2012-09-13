@@ -718,7 +718,12 @@ Despite this shortcoming, this XS version of L</uplevel> should still run way fa
 
 =head1 DEPENDENCIES
 
-L<XSLoader> (standard since perl 5.006).
+L<perl> 5.6.
+
+A C compiler.
+This module may happen to build with a C++ compiler as well, but don't rely on it, as no guarantee is made in this regard.
+
+L<XSLoader> (core since perl 5.006).
 
 =head1 SEE ALSO
 
