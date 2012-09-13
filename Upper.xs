@@ -1071,22 +1071,16 @@ STATIC I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
 STATIC void su_unwind(pTHX_ void *ud_) {
  dMY_CXT;
- I32 cxix    = MY_CXT.unwind_storage.cxix;
- I32 items   = MY_CXT.unwind_storage.items - 1;
- SV **savesp = MY_CXT.unwind_storage.savesp;
+ I32 cxix  = MY_CXT.unwind_storage.cxix;
+ I32 items = MY_CXT.unwind_storage.items;
  I32 mark;
 
  PERL_UNUSED_VAR(ud_);
 
- if (savesp)
-  PL_stack_sp = savesp;
+ PL_stack_sp = MY_CXT.unwind_storage.savesp;
 
  if (cxstack_ix > cxix)
   dounwind(cxix);
-
- /* Hide the level */
- if (items >= 0)
-  PL_stack_sp--;
 
  mark = PL_markstack[cxstack[cxix].blk_oldmarksp];
  *PL_markstack_ptr = PL_stack_sp - PL_stack_base - items;
@@ -1126,16 +1120,12 @@ STATIC void su_yield(pTHX_ void *ud_) {
  dMY_CXT;
  PERL_CONTEXT *cx;
  I32 cxix      = MY_CXT.yield_storage.cxix;
- I32 items     = MY_CXT.yield_storage.items - 1;
- SV **savesp   = MY_CXT.yield_storage.savesp;
+ I32 items     = MY_CXT.yield_storage.items;
  opcode  type  = OP_NULL;
  U8      flags = 0;
  OP     *next;
 
  PERL_UNUSED_VAR(ud_);
-
- if (savesp)
-  PL_stack_sp = savesp;
 
  cx = cxstack + cxix;
  switch (CxTYPE(cx)) {
@@ -1260,14 +1250,10 @@ cxt_when:
    break;
  }
 
+ PL_stack_sp = MY_CXT.yield_storage.savesp;
+
  if (cxstack_ix > cxix)
   dounwind(cxix);
-
- /* Hide the level */
- if (items >= 0)
-  PL_stack_sp--;
- else
-  items = 0;
 
  /* Copy the arguments passed to yield() where the leave op expects to find
   * them. */
@@ -2203,17 +2189,18 @@ XS(XS_Scope__Upper_unwind) {
      continue;
    case CXt_EVAL:
    case CXt_FORMAT:
-    MY_CXT.unwind_storage.cxix  = cxix;
-    MY_CXT.unwind_storage.items = items;
-    /* pp_entersub will want to sanitize the stack after returning from there
-     * Screw that, we're insane */
-    if (GIMME_V == G_SCALAR) {
-     MY_CXT.unwind_storage.savesp = PL_stack_sp;
-     /* dXSARGS calls POPMARK, so we need to match PL_markstack_ptr[1] */
-     PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
-    } else {
-     MY_CXT.unwind_storage.savesp = NULL;
+    MY_CXT.unwind_storage.cxix   = cxix;
+    MY_CXT.unwind_storage.items  = items;
+    MY_CXT.unwind_storage.savesp = PL_stack_sp;
+    if (items > 0) {
+     MY_CXT.unwind_storage.items--;
+     MY_CXT.unwind_storage.savesp--;
     }
+    /* pp_entersub will want to sanitize the stack after returning from there
+     * Screw that, we're insane!
+     * dXSARGS calls POPMARK, so we need to match PL_markstack_ptr[1] */
+    if (GIMME_V == G_SCALAR)
+     PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
     SAVEDESTRUCTOR_X(su_unwind, NULL);
     return;
    default:
@@ -2238,15 +2225,16 @@ XS(XS_Scope__Upper_yield) {
  PERL_UNUSED_VAR(ax); /* -Wall */
 
  SU_GET_CONTEXT(0, items - 1, su_context_here());
- MY_CXT.yield_storage.cxix  = cxix;
- MY_CXT.yield_storage.items = items;
- /* See XS_Scope__Upper_unwind */
- if (GIMME_V == G_SCALAR) {
-  MY_CXT.yield_storage.savesp = PL_stack_sp;
-  PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
- } else {
-  MY_CXT.yield_storage.savesp = NULL;
+ MY_CXT.yield_storage.cxix   = cxix;
+ MY_CXT.yield_storage.items  = items;
+ MY_CXT.yield_storage.savesp = PL_stack_sp;
+ if (items > 0) {
+  MY_CXT.yield_storage.items--;
+  MY_CXT.yield_storage.savesp--;
  }
+ /* See XS_Scope__Upper_unwind */
+ if (GIMME_V == G_SCALAR)
+  PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
  SAVEDESTRUCTOR_X(su_yield, NULL);
  return;
 }
