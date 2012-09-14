@@ -1244,10 +1244,10 @@ cxt_when:
    break;
 #endif
   case CXt_SUBST:
-   croak("%s() cannot target a substitution context", which);
+   croak("%s() can't target a substitution context", which);
    break;
   default:
-   croak("%s() don't know how to leave a %s context",
+   croak("%s() doesn't know how to leave a %s context",
           which,                         SU_CXNAME(cxstack + cxix));
    break;
  }

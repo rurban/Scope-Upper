@@ -72,7 +72,7 @@ is_deeply \@res, [ 20, 23 ], 'yield() in while () { ... }';
  my $err  = $@;
  my $line = __LINE__-3;
  like $err,
-      qr/^yield\(\) cannot target a substitution context at \Q$0\E line $line/,
+      qr/^yield\(\) can't target a substitution context at \Q$0\E line $line/,
       'yield() cannot exit subst';
 }
 

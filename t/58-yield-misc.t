@@ -102,6 +102,6 @@ sub guard { VPIT::TestHelpers::Guard->new(sub { ++$destroyed }) }
  my $err  = $@;
  my $line = __LINE__-3;
  like $err,
-      qr/^leave\(\) cannot target a substitution context at \Q$0\E line $line/,
+      qr/^leave\(\) can't target a substitution context at \Q$0\E line $line/,
       'leave() cannot exit subst';
 }
