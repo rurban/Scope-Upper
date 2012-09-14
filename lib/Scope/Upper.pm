@@ -170,7 +170,7 @@ localize variables, array/hash values or deletions of elements in higher context
 
 =item *
 
-return values immediately to an upper level with L</unwind> and L</yield>, and know which context was in use then with L</want_at> ;
+return values immediately to an upper level with L</unwind>, L</yield> and L</leave>, and know which context was in use then with L</want_at> ;
 
 =item *
 
@@ -339,6 +339,14 @@ Hence you can use it to return values from a C<do> or a C<map> block :
     } @things;
 
 Like for L</unwind>, the upper context isn't coerced onto C<@values>.
+
+=head2 C<leave>
+
+    leave;
+    leave @values;
+
+Immediately returns C<@values> from the current block, whatever it may be (besides a C<s///e> substitution context).
+C<leave> is actually a synonym for C<unwind HERE>, while C<leave @values> is a synonym for C<yield @values, HERE>.
 
 =head2 C<want_at>
 
@@ -638,7 +646,7 @@ Where L</unwind>, L</yield>, L</want_at> and L</uplevel> point to depending on t
 
 =head1 EXPORT
 
-The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</yield>, L</want_at> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
+The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</yield>, L</leave>, L</want_at> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
 
 The constant L</SU_THREADSAFE> is also only exported on request, individually or by the tags C<':consts'> and C<':all'>.
 
@@ -653,7 +661,7 @@ our %EXPORT_TAGS = (
  funcs  => [ qw<
   reap
   localize localize_elem localize_delete
-  unwind yield
+  unwind yield leave
   want_at
   uplevel
   uid validate_uid

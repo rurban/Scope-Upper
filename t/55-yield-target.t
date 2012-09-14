@@ -5,7 +5,7 @@ use warnings;
 
 use Test::More tests => 18;
 
-use Scope::Upper qw<yield>;
+use Scope::Upper qw<yield leave>;
 
 my @res;
 

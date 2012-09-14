@@ -1119,6 +1119,7 @@ STATIC void su_unwind(pTHX_ void *ud_) {
 STATIC void su_yield(pTHX_ void *ud_) {
  dMY_CXT;
  PERL_CONTEXT *cx;
+ const char   *which = ud_;
  I32 cxix      = MY_CXT.yield_storage.cxix;
  I32 items     = MY_CXT.yield_storage.items;
  opcode  type  = OP_NULL;
@@ -1243,10 +1244,11 @@ cxt_when:
    break;
 #endif
   case CXt_SUBST:
-   croak("yield() cannot target a substitution context");
+   croak("%s() cannot target a substitution context", which);
    break;
   default:
-   croak("yield() don't know how to leave a %s context", SU_CXNAME(cxstack + cxix));
+   croak("%s() don't know how to leave a %s context",
+          which,                         SU_CXNAME(cxstack + cxix));
    break;
  }
 
@@ -2210,6 +2212,8 @@ XS(XS_Scope__Upper_unwind) {
  croak("Can't return outside a subroutine");
 }
 
+STATIC const char su_yield_name[] = "yield";
+
 XS(XS_Scope__Upper_yield); /* prototype to pass -Wmissing-prototypes */
 
 XS(XS_Scope__Upper_yield) {
@@ -2235,7 +2239,33 @@ XS(XS_Scope__Upper_yield) {
  /* See XS_Scope__Upper_unwind */
  if (GIMME_V == G_SCALAR)
   PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
- SAVEDESTRUCTOR_X(su_yield, NULL);
+ SAVEDESTRUCTOR_X(su_yield, su_yield_name);
+ return;
+}
+
+STATIC const char su_leave_name[] = "leave";
+
+XS(XS_Scope__Upper_leave); /* prototype to pass -Wmissing-prototypes */
+
+XS(XS_Scope__Upper_leave) {
+#ifdef dVAR
+ dVAR; dXSARGS;
+#else
+ dXSARGS;
+#endif
+ dMY_CXT;
+ I32 cxix;
+
+ PERL_UNUSED_VAR(cv); /* -W */
+ PERL_UNUSED_VAR(ax); /* -Wall */
+
+ MY_CXT.yield_storage.cxix   = su_context_here();
+ MY_CXT.yield_storage.items  = items;
+ MY_CXT.yield_storage.savesp = PL_stack_sp;
+ /* See XS_Scope__Upper_unwind */
+ if (GIMME_V == G_SCALAR)
+  PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
+ SAVEDESTRUCTOR_X(su_yield, su_leave_name);
  return;
 }
 
@@ -2258,6 +2288,7 @@ BOOT:
 
  newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
  newXSproto("Scope::Upper::yield",  XS_Scope__Upper_yield,  file, NULL);
+ newXSproto("Scope::Upper::leave",  XS_Scope__Upper_leave,  file, NULL);
 
  su_setup();
 }
