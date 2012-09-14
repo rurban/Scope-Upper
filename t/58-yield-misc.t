@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 4 * 3 + 3;
+use Test::More tests => 4 * 3 + 1 + 3;
 
 use lib 't/lib';
 use VPIT::TestHelpers;
@@ -73,6 +73,34 @@ sub guard { VPIT::TestHelpers::Guard->new(sub { ++$destroyed }) }
   is $destroyed, 1, "$desc: destroyed 1";
  }
  is $destroyed, 1, "$desc: destroyed 2";
+}
+
+# Test 'return from do' in special cases
+
+{
+ no warnings 'void';
+ my @res = (1, do {
+  my $cxt = HERE;
+  my $thing = (777, do {
+   my @stuff = (888, do {
+    yield 2, 3 => $cxt;
+    map { my $x; $_ x 3 } qw<x y z>
+   }, 999);
+   if (@stuff) {
+    my $y;
+    ++$y;
+    'YYY';
+   } else {
+    die 'not reached';
+   }
+  });
+  if (1) {
+   my $z;
+   'ZZZ';
+  }
+  'VVV'
+ }, 4);
+ is "@res", '1 2 3 4', 'yield() found the op to return to';
 }
 
 # Test leave
