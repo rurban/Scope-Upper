@@ -170,7 +170,11 @@ localize variables, array/hash values or deletions of elements in higher context
 
 =item *
 
-return values immediately to an upper level with L</unwind>, L</yield> and L</leave>, and know which context was in use then with L</want_at> ;
+return values immediately to an upper level with L</unwind>, L</yield> and L</leave> ;
+
+=item *
+
+gather information about an upper context with L</want_at> and L</context_info> ;
 
 =item *
 
@@ -339,6 +343,7 @@ Hence you can use it to return values from a C<do> or a C<map> block :
     } @things;
 
 Like for L</unwind>, the upper context isn't coerced onto C<@values>.
+You can use the fifth value returned by L</context_info> to handle context coercion.
 
 =head2 C<leave>
 
@@ -347,6 +352,8 @@ Like for L</unwind>, the upper context isn't coerced onto C<@values>.
 
 Immediately returns C<@values> from the current block, whatever it may be (besides a C<s///e> substitution context).
 C<leave> is actually a synonym for C<unwind HERE>, while C<leave @values> is a synonym for C<yield @values, HERE>.
+
+Like for L</yield>, you can use the fifth value returned by L</context_info> to handle context coercion.
 
 =head2 C<want_at>
 
@@ -364,6 +371,65 @@ It can be used to revise the example showed in L</unwind> :
     }->();
 
 will rightfully set C<$num> to C<26>.
+
+=head2 C<context_info>
+
+    my ($package, $filename, $line, $subroutine, $hasargs,
+        $wantarray, $evaltext, $is_require, $hints, $bitmask,
+        $hinthash) = context_info $context;
+
+Gives information about the context denoted by C<$context>, akin to what L<perlfunc/caller> provides but not limited only to subroutine, eval and format contexts.
+When C<$context> is omitted, it defaults to the current context.
+
+The values returned are, in order :
+
+=over 4
+
+=item *
+
+I<(index 0)> : the namespace in use when the context was created ;
+
+=item *
+
+I<(index 1)> : the name of the file at the point where the context was created ;
+
+=item *
+
+I<(index 2)> : the line number at the point where the context was created ;
+
+=item *
+
+I<(index 3)> : the name of the subroutine called for this context, or C<undef> if this is not a subroutine context ;
+
+=item *
+
+I<(index 4)> : a boolean indicating whether a new instance of C<@_> was set up for this context, or C<undef> if this is not a subroutine context ;
+
+=item *
+
+I<(index 5)> : the context (in the sense of L<perlfunc/wantarray>) in which the context (in our sense) is executed ;
+
+=item *
+
+I<(index 6)> : the contents of the string being compiled for this context, or C<undef> if this is not an eval context ;
+
+=item *
+
+I<(index 7)> : a boolean indicating whether this eval context was created by C<require>, or C<undef> if this is not an eval context ;
+
+=item *
+
+I<(index 8)> : the value of the lexical hints in use when the context was created ;
+
+=item *
+
+I<(index 9)> : a bit string representing the warnings in use when the context was created ;
+
+=item *
+
+I<(index 10)> : a reference to the lexical hints hash in use when the context was created (only on perl 5.10 or greater).
+
+=back
 
 =head2 C<uplevel>
 
@@ -623,7 +689,7 @@ Where L</localize>, L</localize_elem> and L</localize_delete> act depending on t
     # $cxt = SCOPE(4), UP SUB UP SUB = UP SUB EVAL = UP CALLER(2) = TOP
     ...
 
-Where L</unwind>, L</yield>, L</want_at> and L</uplevel> point to depending on the C<$cxt>:
+Where L</unwind>, L</yield>, L</want_at>, L</context_info> and L</uplevel> point to depending on the C<$cxt>:
 
     sub {
      eval {
@@ -646,7 +712,7 @@ Where L</unwind>, L</yield>, L</want_at> and L</uplevel> point to depending on t
 
 =head1 EXPORT
 
-The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</yield>, L</leave>, L</want_at> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
+The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</yield>, L</leave>, L</want_at>, L</context_info> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
 
 The constant L</SU_THREADSAFE> is also only exported on request, individually or by the tags C<':consts'> and C<':all'>.
 
@@ -662,7 +728,7 @@ our %EXPORT_TAGS = (
   reap
   localize localize_elem localize_delete
   unwind yield leave
-  want_at
+  want_at context_info
   uplevel
   uid validate_uid
  > ],

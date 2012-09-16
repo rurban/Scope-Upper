@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 2 * 19;
+use Test::More tests => 2 * 20;
 
 require Scope::Upper;
 
@@ -16,6 +16,7 @@ my %syms = (
  yield           => undef,
  leave           => undef,
  want_at         => ';$',
+ context_info    => ';$',
  uplevel         => '&@',
  uid             => ';$',
  validate_uid    => '$',

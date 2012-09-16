@@ -80,6 +80,13 @@ STATIC SV *su_newSV_type(pTHX_ svtype t) {
 # define newSV_type(T) su_newSV_type(aTHX_ (T))
 #endif
 
+#ifdef newSVpvn_flags
+# define su_newmortal_pvn(S, L) newSVpvn_flags((S), (L), SVs_TEMP)
+#else
+# define su_newmortal_pvn(S, L) sv_2mortal(newSVpvn((S), (L)))
+#endif
+#define su_newmortal_pvs(S) su_newmortal_pvn((S), sizeof(S)-1)
+
 #ifndef SvPV_const
 # define SvPV_const(S, L) SvPV(S, L)
 #endif
@@ -125,12 +132,53 @@ STATIC SV *su_newSV_type(pTHX_ svtype t) {
 # define CxHASARGS(C) ((C)->blk_sub.hasargs)
 #endif
 
+#ifndef CxGIMME
+# ifdef G_WANT
+#  define CxGIMME(C) ((C)->blk_gimme & G_WANT)
+# else
+#  define CxGIMME(C) ((C)->blk_gimme)
+# endif
+#endif
+
+#ifndef CxOLD_OP_TYPE
+# define CxOLD_OP_TYPE(C) (C)->blk_eval.old_op_type
+#endif
+
+#ifndef OutCopFILE
+# define OutCopFILE(C) CopFILE(C)
+#endif
+
+#ifndef OutCopFILE_len
+# define OutCopFILE_len(C) strlen(OutCopFILE(C))
+#endif
+
+#ifndef CopHINTS_get
+# define CopHINTS_get(C) ((I32) (C)->op_private & HINT_PRIVATE_MASK)
+#endif
+
+#ifndef CopHINTHASH_get
+# define CopHINTHASH_get(C) (C)->cop_hints_hash
+#endif
+
+#ifndef cophh_2hv
+# define COPHH           struct refcounted_he
+# define cophh_2hv(H, F) Perl_refcounted_he_chain_2hv(aTHX_ (H))
+#endif
+
 #ifndef HvNAME_get
 # define HvNAME_get(H) HvNAME(H)
 #endif
 
+#ifndef HvNAMELEN
+# define HvNAMELEN(H) strlen(HvNAME(H))
+#endif
+
 #ifndef gv_fetchpvn_flags
 # define gv_fetchpvn_flags(A, B, C, D) gv_fetchpv((A), (C), (D))
+#endif
+
+#ifndef hv_fetchs
+# define hv_fetchs(H, K, L) hv_fetch((H), (K), sizeof(K)-1, (L))
 #endif
 
 #ifndef OP_GIMME_REVERSE
@@ -2075,6 +2123,48 @@ STATIC I32 su_context_normalize_down(pTHX_ I32 cxix) {
 
 #define su_context_here() su_context_normalize_up(su_context_skip_db(cxstack_ix))
 
+STATIC I32 su_context_gimme(pTHX_ I32 cxix) {
+#define su_context_gimme(C) su_context_gimme(aTHX_ (C))
+ I32 i;
+
+ for (i = cxix; i >= 0; --i) {
+  PERL_CONTEXT *cx = cxstack + i;
+
+  switch (CxTYPE(cx)) {
+   /* gimme is always G_ARRAY for loop contexts. */
+#if SU_HAS_PERL(5, 11, 0)
+   case CXt_LOOP_FOR:
+   case CXt_LOOP_PLAIN:
+   case CXt_LOOP_LAZYSV:
+   case CXt_LOOP_LAZYIV:
+#else
+   case CXt_LOOP:
+#endif
+   case CXt_SUBST: {
+    const COP *cop = cx->blk_oldcop;
+    if (cop && cop->op_sibling) {
+     switch (cop->op_sibling->op_flags & OPf_WANT) {
+      case OPf_WANT_VOID:
+       return G_VOID;
+      case OPf_WANT_SCALAR:
+       return G_SCALAR;
+      case OPf_WANT_LIST:
+       return G_ARRAY;
+      default:
+       break;
+     }
+    }
+    break;
+   }
+   default:
+    return CxGIMME(cx);
+    break;
+  }
+ }
+
+ return G_VOID;
+}
+
 /* --- Interpreter setup/teardown ------------------------------------------ */
 
 STATIC void su_teardown(pTHX_ void *param) {
@@ -2170,6 +2260,12 @@ default_cx:                     \
    }                       \
   }                        \
  } STMT_END
+
+#if SU_HAS_PERL(5, 10, 0)
+# define SU_INFO_COUNT 11
+#else
+# define SU_INFO_COUNT 10
+#endif
 
 XS(XS_Scope__Upper_unwind); /* prototype to pass -Wmissing-prototypes */
 
@@ -2462,6 +2558,148 @@ PPCODE:
   }
  }
  XSRETURN_UNDEF;
+
+void
+context_info(...)
+PROTOTYPE: ;$
+PREINIT:
+ I32 cxix;
+ const PERL_CONTEXT *cx, *dbcx;
+ COP *cop;
+PPCODE:
+ SU_GET_CONTEXT(0, 0, su_context_skip_db(cxstack_ix));
+ cxix = su_context_normalize_up(cxix);
+ cx   = cxstack + cxix;
+ dbcx = cx;
+ if (PL_DBsub && cxix && (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT)) {
+  I32 i = su_context_skip_db(cxix - 1) + 1;;
+  if (i < cxix && CxTYPE(cxstack + i) == CXt_SUB)
+   cx = cxstack + i;
+ }
+ cop  = cx->blk_oldcop;
+ EXTEND(SP, SU_INFO_COUNT);
+ /* stash (0) */
+ {
+  HV *stash = CopSTASH(cop);
+  if (stash)
+   PUSHs(su_newmortal_pvn(HvNAME(stash), HvNAMELEN(stash)));
+  else
+   PUSHs(&PL_sv_undef);
+ }
+ /* file (1) */
+ PUSHs(su_newmortal_pvn(OutCopFILE(cop), OutCopFILE_len(cop)));
+ /* line (2) */
+ mPUSHi(CopLINE(cop));
+ /* subroutine (3) and has_args (4) */
+ switch (CxTYPE(cx)) {
+  case CXt_SUB:
+  case CXt_FORMAT: {
+   GV *cvgv = CvGV(dbcx->blk_sub.cv);
+   if (cvgv && isGV(cvgv)) {
+    SV *sv = sv_newmortal();
+    gv_efullname3(sv, cvgv, NULL);
+    PUSHs(sv);
+   } else {
+    PUSHs(su_newmortal_pvs("(unknown)"));
+   }
+   if (CxHASARGS(cx))
+    PUSHs(&PL_sv_yes);
+   else
+    PUSHs(&PL_sv_no);
+   break;
+  }
+  case CXt_EVAL:
+   PUSHs(su_newmortal_pvs("(eval)"));
+   mPUSHi(0);
+   break;
+  default:
+   PUSHs(&PL_sv_undef);
+   PUSHs(&PL_sv_undef);
+ }
+ /* gimme (5) */
+ switch (su_context_gimme(cxix)) {
+  case G_ARRAY:
+   PUSHs(&PL_sv_yes);
+   break;
+  case G_SCALAR:
+   PUSHs(&PL_sv_no);
+   break;
+  default: /* G_VOID */
+   PUSHs(&PL_sv_undef);
+   break;
+ }
+ /* eval text (6) and is_require (7) */
+ switch (CxTYPE(cx)) {
+  case CXt_EVAL:
+   if (CxOLD_OP_TYPE(cx) == OP_ENTEREVAL) {
+    /* eval STRING */
+#if SU_HAS_PERL(5, 17, 4)
+    PUSHs(newSVpvn_flags(SvPVX(cx->blk_eval.cur_text),
+                         SvCUR(cx->blk_eval.cur_text)-2,
+                         SvUTF8(cx->blk_eval.cur_text)|SVs_TEMP));
+#else
+    PUSHs(cx->blk_eval.cur_text);
+#endif
+    PUSHs(&PL_sv_no);
+    break;
+   } else if (cx->blk_eval.old_namesv) {
+    /* require */
+    PUSHs(sv_mortalcopy(cx->blk_eval.old_namesv));
+    PUSHs(&PL_sv_yes);
+    break;
+   }
+   /* FALLTHROUGH */
+  default:
+   /* Anything else including eval BLOCK */
+   PUSHs(&PL_sv_undef);
+   PUSHs(&PL_sv_undef);
+   break;
+ }
+ /* hints (8) */
+ mPUSHi(CopHINTS_get(cop));
+ /* warnings (9) */
+ {
+  SV *mask = NULL;
+#if SU_HAS_PERL(5, 9, 4)
+  STRLEN *old_warnings = cop->cop_warnings;
+#else
+  SV *old_warnings = cop->cop_warnings;
+#endif
+  if (old_warnings == pWARN_NONE ||
+      (old_warnings == pWARN_STD && (PL_dowarn & G_WARN_ON) == 0)) {
+   mask = su_newmortal_pvn(WARN_NONEstring, WARNsize);
+  } else if (old_warnings == pWARN_ALL ||
+             (old_warnings == pWARN_STD && PL_dowarn & G_WARN_ON)) {
+   HV *bits = get_hv("warnings::Bits", 0);
+   if (bits) {
+    SV **bits_all = hv_fetchs(bits, "all", FALSE);
+    if (bits_all)
+     mask = sv_mortalcopy(*bits_all);
+   }
+   if (!mask)
+    mask = su_newmortal_pvn(WARN_ALLstring, WARNsize);
+  } else {
+#if SU_HAS_PERL(5, 9, 4)
+   mask = su_newmortal_pvn((char *) (old_warnings + 1), old_warnings[0]);
+#else
+   mask = sv_mortalcopy(old_warnings);
+#endif
+  }
+  PUSHs(mask);
+ }
+#if SU_HAS_PERL(5, 10, 0)
+ /* hints hash (10) */
+ {
+  COPHH *hints_hash = CopHINTHASH_get(cop);
+  if (hints_hash) {
+   SV *rhv = sv_2mortal(newRV_noinc((SV *) cophh_2hv(hints_hash, 0)));
+   PUSHs(rhv);
+  } else {
+   PUSHs(&PL_sv_undef);
+  }
+ }
+#endif
+ XSRETURN(SU_INFO_COUNT);
 
 void
 reap(SV *hook, ...)
