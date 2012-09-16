@@ -353,9 +353,9 @@ C<leave> is actually a synonym for C<unwind HERE>, while C<leave @values> is a s
     my $want = want_at;
     my $want = want_at $context;
 
-Like C<wantarray>, but for the subroutine/eval/format at or just above C<$context>.
+Like L<perlfunc/wantarray>, but for the subroutine, eval or format context located at or just above C<$context>.
 
-The previous example can then be "corrected" :
+It can be used to revise the example showed in L</unwind> :
 
     my $num = sub {
      my @a = ('a' .. 'z');
