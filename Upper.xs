@@ -1977,6 +1977,9 @@ STATIC I32 su_context_skip_db(pTHX_ I32 cxix) {
   PERL_CONTEXT *cx = cxstack + i;
 
   switch (CxTYPE(cx)) {
+#if SU_HAS_PERL(5, 17, 1)
+   case CXt_LOOP_PLAIN:
+#endif
    case CXt_BLOCK:
     if (cx->blk_oldcop && CopSTASH(cx->blk_oldcop) == GvSTASH(PL_DBgv))
      continue;
