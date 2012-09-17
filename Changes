@@ -1,5 +1,23 @@
 Revision history for Scope-Upper
 
+0.20    2012-09-17 11:00 UTC
+        + Add : The new yield(@values, $context) function can be used to return
+                values to any upper scope, including do or map blocks.
+                The new leave(@values) function is an alias for
+                yield(@values, HERE).
+        + Add : The new context_info($context) function return information
+                about context $context, similarly to what caller() provides
+                but for any upper scope.
+        + Chg : Contexts are now normalized. In previous versions, it was
+                possible for different contexts to refer to the same scope :
+                for example, "for (my $i = 0; $i < 10; ++$i) { ... }" was
+                reachable through two contexts, while "for (@array) { ... }"
+                only by one. Starting from this version, contexts are
+                normalized so that they always represent an actual scope.
+        + Doc : C++ compilers are officially NOT supported.
+        + Fix : Building with a more recent version of perl 5.17.4.
+        + Fix : Debugger compatibility with perl 5.17.1 and above.
+
 0.19    2012-09-01 13:25 UTC
         + Doc : POD headings have been made linkable.
         + Fix : Building with perl 5.17.4.

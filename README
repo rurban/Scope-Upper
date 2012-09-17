@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.19
+    Version 0.20
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -148,8 +148,11 @@ DESCRIPTION
         higher contexts with respectively "localize", "localize_elem" and
         "localize_delete" ;
 
-    *   return values immediately to an upper level with "unwind", and know
-        which context was in use then with "want_at" ;
+    *   return values immediately to an upper level with "unwind", "yield"
+        and "leave" ;
+
+    *   gather information about an upper context with "want_at" and
+        "context_info" ;
 
     *   execute a subroutine in the setting of an upper subroutine stack
         frame with "uplevel" ;
@@ -246,7 +249,10 @@ FUNCTIONS
     will be vivified as soon as the localization occurs and emptied when it
     ends, although it will still exist in its glob.
 
-  "localize_delete $what, $key, $context"
+  "localize_delete"
+        localize_delete $what, $key;
+        localize_delete $what, $key, $context;
+
     Introduces the deletion of a variable or an array/hash element delayed
     to the time of first return into the upper scope denoted by $context.
     $what can be:
@@ -263,13 +269,15 @@ FUNCTIONS
         "exists" anymore. $key is ignored.
 
   "unwind"
-        unwind @values;
+        unwind;
         unwind @values, $context;
 
-    Returns @values *from* the context pointed by $context, i.e. from the
-    subroutine, eval or format at or just above $context, and immediately
-    restart the program flow at this point - thus effectively returning to
-    an upper scope.
+    Returns @values *from* the subroutine, eval or format context pointed by
+    or just above $context, and immediately restart the program flow at this
+    point - thus effectively returning @values to an upper scope. If @values
+    is empty, then the $context parameter is optional and defaults to the
+    current context (making the call equivalent to a bare "return;") ;
+    otherwise it is mandatory.
 
     The upper context isn't coerced onto @values, which is hence always
     evaluated in list context. This means that
@@ -282,14 +290,55 @@ FUNCTIONS
 
     will set $num to 'z'. You can use "want_at" to handle these cases.
 
+  "yield"
+        yield;
+        yield @values, $context;
+
+    Returns @values *from* the context pointed by or just above $context,
+    and immediately restart the program flow at this point. If @values is
+    empty, then the $context parameter is optional and defaults to the
+    current context ; otherwise it is mandatory.
+
+    "yield" differs from "unwind" in that it can target *any* upper scope
+    (besides a "s///e" substitution context) and not necessarily a sub, an
+    eval or a format. Hence you can use it to return values from a "do" or a
+    "map" block :
+
+        my $now = do {
+         local $@;
+         eval { require Time::HiRes } or yield time() => HERE;
+         Time::HiRes::time();
+        };
+
+        my @uniq = map {
+         yield if $seen{$_}++; # returns the empty list from the block
+         ...
+        } @things;
+
+    Like for "unwind", the upper context isn't coerced onto @values. You can
+    use the fifth value returned by "context_info" to handle context
+    coercion.
+
+  "leave"
+        leave;
+        leave @values;
+
+    Immediately returns @values from the current block, whatever it may be
+    (besides a "s///e" substitution context). "leave" is actually a synonym
+    for "unwind HERE", while "leave @values" is a synonym for "yield
+    @values, HERE".
+
+    Like for "yield", you can use the fifth value returned by "context_info"
+    to handle context coercion.
+
   "want_at"
         my $want = want_at;
         my $want = want_at $context;
 
-    Like "wantarray", but for the subroutine/eval/format at or just above
-    $context.
+    Like "wantarray" in perlfunc, but for the subroutine, eval or format
+    context located at or just above $context.
 
-    The previous example can then be "corrected" :
+    It can be used to revise the example showed in "unwind" :
 
         my $num = sub {
          my @a = ('a' .. 'z');
@@ -299,13 +348,57 @@ FUNCTIONS
 
     will rightfully set $num to 26.
 
-  "uplevel $code, @args, $context"
+  "context_info"
+        my ($package, $filename, $line, $subroutine, $hasargs,
+            $wantarray, $evaltext, $is_require, $hints, $bitmask,
+            $hinthash) = context_info $context;
+
+    Gives information about the context denoted by $context, akin to what
+    "caller" in perlfunc provides but not limited only to subroutine, eval
+    and format contexts. When $context is omitted, it defaults to the
+    current context.
+
+    The values returned are, in order :
+
+    *   *(index 0)* : the namespace in use when the context was created ;
+
+    *   *(index 1)* : the name of the file at the point where the context
+        was created ;
+
+    *   *(index 2)* : the line number at the point where the context was
+        created ;
+
+    *   *(index 3)* : the name of the subroutine called for this context, or
+        "undef" if this is not a subroutine context ;
+
+    *   *(index 4)* : a boolean indicating whether a new instance of @_ was
+        set up for this context, or "undef" if this is not a subroutine
+        context ;
+
+    *   *(index 5)* : the context (in the sense of "wantarray" in perlfunc)
+        in which the context (in our sense) is executed ;
+
+    *   *(index 6)* : the contents of the string being compiled for this
+        context, or "undef" if this is not an eval context ;
+
+    *   *(index 7)* : a boolean indicating whether this eval context was
+        created by "require", or "undef" if this is not an eval context ;
+
+    *   *(index 8)* : the value of the lexical hints in use when the context
+        was created ;
+
+    *   *(index 9)* : a bit string representing the warnings in use when the
+        context was created ;
+
+    *   *(index 10)* : a reference to the lexical hints hash in use when the
+        context was created (only on perl 5.10 or greater).
+
+  "uplevel"
         my @ret = uplevel { ...; return @ret };
-        my @ret = uplevel { my @args = @_; ...; return @ret } @args;
-        my @ret = uplevel { ... } @args, $context;
+        my @ret = uplevel { my @args = @_; ...; return @ret } @args, $context;
         my @ret = &uplevel($callback, @args, $context);
 
-    Executes the code reference $code with arguments @args as if it were
+    Executes the code reference $callback with arguments @args as if it were
     located at the subroutine stack frame pointed by $context, effectively
     fooling "caller" and "die" into believing that the call actually
     happened higher in the stack. The code is executed in the context of the
@@ -323,6 +416,9 @@ FUNCTIONS
 
         my @inverses = target(1, 2, 4); # @inverses contains (0, 0.5, 0.25)
         my $count    = target(1, 2, 4); # $count is 3
+
+    Note that if @args is empty, then the $context parameter is optional and
+    defaults to the current context ; otherwise it is mandatory.
 
     Sub::Uplevel also implements a pure-Perl version of "uplevel". Both are
     identical, with the following caveats :
@@ -551,13 +647,15 @@ WORDS
         # $cxt = SCOPE(4), UP SUB UP SUB = UP SUB EVAL = UP CALLER(2) = TOP
         ...
 
-    Where "unwind", "want_at" and "uplevel" point to depending on the $cxt:
+    Where "unwind", "yield", "want_at", "context_info" and "uplevel" point
+    to depending on the $cxt:
 
         sub {
          eval {
           sub {
            {
-            unwind @things => $cxt;   # or uplevel { ... } $cxt;
+            unwind @things => $cxt;   # or yield @things => $cxt
+                                      # or uplevel { ... } $cxt
             ...
            }
            ...
@@ -573,8 +671,9 @@ WORDS
 
 EXPORT
     The functions "reap", "localize", "localize_elem", "localize_delete",
-    "unwind", "want_at" and "uplevel" are only exported on request, either
-    individually or by the tags ':funcs' and ':all'.
+    "unwind", "yield", "leave", "want_at", "context_info" and "uplevel" are
+    only exported on request, either individually or by the tags ':funcs'
+    and ':all'.
 
     The constant "SU_THREADSAFE" is also only exported on request,
     individually or by the tags ':consts' and ':all'.
@@ -639,7 +738,12 @@ CAVEATS
     version from Sub::Uplevel.
 
 DEPENDENCIES
-    XSLoader (standard since perl 5.006).
+    perl 5.6.
+
+    A C compiler. This module may happen to build with a C++ compiler as
+    well, but don't rely on it, as no guarantee is made in this regard.
+
+    XSLoader (core since perl 5.006).
 
 SEE ALSO
     "local" in perlfunc, "Temporary Values via local()" in perlsub.
