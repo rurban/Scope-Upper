@@ -305,7 +305,7 @@ C<$key> is ignored.
     unwind;
     unwind @values, $context;
 
-Returns C<@values> I<from> the subroutine, eval or format context pointed by or just above C<$context>, and immediately restart the program flow at this point - thus effectively returning C<@values> to an upper scope.
+Returns C<@values> I<from> the subroutine, eval or format context pointed by or just above C<$context>, and immediately restarts the program flow at this point - thus effectively returning C<@values> to an upper scope.
 If C<@values> is empty, then the C<$context> parameter is optional and defaults to the current context (making the call equivalent to a bare C<return;>) ; otherwise it is mandatory.
 
 The upper context isn't coerced onto C<@values>, which is hence always evaluated in list context.
@@ -325,7 +325,7 @@ You can use L</want_at> to handle these cases.
     yield;
     yield @values, $context;
 
-Returns C<@values> I<from> the context pointed by or just above C<$context>, and immediately restart the program flow at this point.
+Returns C<@values> I<from> the context pointed by or just above C<$context>, and immediately restarts the program flow at this point.
 If C<@values> is empty, then the C<$context> parameter is optional and defaults to the current context ; otherwise it is mandatory.
 
 L</yield> differs from L</unwind> in that it can target I<any> upper scope (besides a C<s///e> substitution context) and not necessarily a sub, an eval or a format.
@@ -351,7 +351,7 @@ You can use the fifth value returned by L</context_info> to handle context coerc
     leave @values;
 
 Immediately returns C<@values> from the current block, whatever it may be (besides a C<s///e> substitution context).
-C<leave> is actually a synonym for C<unwind HERE>, while C<leave @values> is a synonym for C<yield @values, HERE>.
+C<leave> is actually a synonym for C<yield HERE>, while C<leave @values> is a synonym for C<yield @values, HERE>.
 
 Like for L</yield>, you can use the fifth value returned by L</context_info> to handle context coercion.
 
@@ -381,7 +381,7 @@ will rightfully set C<$num> to C<26>.
 Gives information about the context denoted by C<$context>, akin to what L<perlfunc/caller> provides but not limited only to subroutine, eval and format contexts.
 When C<$context> is omitted, it defaults to the current context.
 
-The values returned are, in order :
+The returned values are, in order :
 
 =over 4
 
