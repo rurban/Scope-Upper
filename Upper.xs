@@ -2669,7 +2669,11 @@ PPCODE:
    if (PL_dowarn & G_WARN_ON)
     goto context_info_warnings_on;
    else
+#if SU_HAS_PERL(5, 17, 4)
+    mask = &PL_sv_undef;
+#else
     goto context_info_warnings_off;
+#endif
   } else if (old_warnings == pWARN_NONE) {
 context_info_warnings_off:
    mask = su_newmortal_pvn(WARN_NONEstring, WARNsize);
