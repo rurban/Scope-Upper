@@ -2665,12 +2665,18 @@ PPCODE:
 #else
   SV *old_warnings = cop->cop_warnings;
 #endif
-  if (old_warnings == pWARN_NONE ||
-      (old_warnings == pWARN_STD && (PL_dowarn & G_WARN_ON) == 0)) {
+  if (old_warnings == pWARN_STD) {
+   if (PL_dowarn & G_WARN_ON)
+    goto context_info_warnings_on;
+   else
+    goto context_info_warnings_off;
+  } else if (old_warnings == pWARN_NONE) {
+context_info_warnings_off:
    mask = su_newmortal_pvn(WARN_NONEstring, WARNsize);
-  } else if (old_warnings == pWARN_ALL ||
-             (old_warnings == pWARN_STD && PL_dowarn & G_WARN_ON)) {
-   HV *bits = get_hv("warnings::Bits", 0);
+  } else if (old_warnings == pWARN_ALL) {
+   HV *bits;
+context_info_warnings_on:
+   bits = get_hv("warnings::Bits", 0);
    if (bits) {
     SV **bits_all = hv_fetchs(bits, "all", FALSE);
     if (bits_all)
