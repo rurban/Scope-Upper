@@ -5,6 +5,8 @@ my $exp0 = ::expected('block', 0, undef);
 use strict;
 use warnings;
 
+use Config qw<%Config>;
+
 # We're using Test::Leaner here because Test::More loads overload, which itself
 # uses warning::register, which may cause the "all warnings on" bitmask to
 # change ; and that doesn't fit well with how we're testing things.
@@ -13,6 +15,8 @@ use lib 't/lib';
 use Test::Leaner tests => 19 + 6;
 
 use Scope::Upper qw<context_info UP HERE CALLER>;
+
+sub HINT_BLOCK_SCOPE () { 0x100 }
 
 sub expected {
  my ($type, $line, $want) = @_;
@@ -40,7 +44,10 @@ sub expected {
   $want    = '' if defined $want and not $want;
  }
 
- $want = "$]" < 5.015_001 ? '' : undef if $top;
+ if ($top) {
+  $want   = "$]" < 5.015_001 ? '' : undef;
+  $hints &= ~HINT_BLOCK_SCOPE if $Config{usesitecustomize};
+ }
 
  my @exp = (
   $pkg,
