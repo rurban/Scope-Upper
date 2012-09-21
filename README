@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.20
+    Version 0.21
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -273,11 +273,11 @@ FUNCTIONS
         unwind @values, $context;
 
     Returns @values *from* the subroutine, eval or format context pointed by
-    or just above $context, and immediately restart the program flow at this
-    point - thus effectively returning @values to an upper scope. If @values
-    is empty, then the $context parameter is optional and defaults to the
-    current context (making the call equivalent to a bare "return;") ;
-    otherwise it is mandatory.
+    or just above $context, and immediately restarts the program flow at
+    this point - thus effectively returning @values to an upper scope. If
+    @values is empty, then the $context parameter is optional and defaults
+    to the current context (making the call equivalent to a bare "return;")
+    ; otherwise it is mandatory.
 
     The upper context isn't coerced onto @values, which is hence always
     evaluated in list context. This means that
@@ -295,7 +295,7 @@ FUNCTIONS
         yield @values, $context;
 
     Returns @values *from* the context pointed by or just above $context,
-    and immediately restart the program flow at this point. If @values is
+    and immediately restarts the program flow at this point. If @values is
     empty, then the $context parameter is optional and defaults to the
     current context ; otherwise it is mandatory.
 
@@ -325,8 +325,8 @@ FUNCTIONS
 
     Immediately returns @values from the current block, whatever it may be
     (besides a "s///e" substitution context). "leave" is actually a synonym
-    for "unwind HERE", while "leave @values" is a synonym for "yield
-    @values, HERE".
+    for "yield HERE", while "leave @values" is a synonym for "yield @values,
+    HERE".
 
     Like for "yield", you can use the fifth value returned by "context_info"
     to handle context coercion.
@@ -358,7 +358,7 @@ FUNCTIONS
     and format contexts. When $context is omitted, it defaults to the
     current context.
 
-    The values returned are, in order :
+    The returned values are, in order :
 
     *   *(index 0)* : the namespace in use when the context was created ;
 

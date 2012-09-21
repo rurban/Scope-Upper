@@ -1,5 +1,16 @@
 Revision history for Scope-Upper
 
+0.21    2012-09-21 15:10 UTC
+        + Fix : context_info() has been taught about perl 5.17.4.
+        + Fix : t/07-context_info.t will no longer fail with perls that have
+                sitecustomize enabled (like many perl builds for Windows).
+                Thanks Steve Hay and Nicholas Clark for debugging help.
+        + Fix : Broken linkage on Windows with gcc 3.4, which appears in
+                particular when using ActivePerl's default compiler suite.
+                For those setups, the Scope::Upper shared library will now be
+                linked against the perl dll directly (instead of the import
+                library).
+
 0.20    2012-09-17 11:00 UTC
         + Add : The new yield(@values, $context) function can be used to return
                 values to any upper scope, including do or map blocks.
