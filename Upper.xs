@@ -2572,7 +2572,7 @@ PPCODE:
  cx   = cxstack + cxix;
  dbcx = cx;
  if (PL_DBsub && cxix && (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT)) {
-  I32 i = su_context_skip_db(cxix - 1) + 1;;
+  I32 i = su_context_skip_db(cxix - 1) + 1;
   if (i < cxix && CxTYPE(cxstack + i) == CXt_SUB)
    cx = cxstack + i;
  }
