@@ -153,8 +153,8 @@ is do { local $@; eval { depth() } }, 1, 'check eval block depth';
 our $hurp;
 
 SKIP: {
- skip "Causes failures during global destruction on perl 5.8.[0126]" => 5
-                  if ("$]" >= 5.008 and "$]" <= 5.008_002) or "$]" == 5.008_006;
+ skip "Causes failures during global destruction on perl 5.8.[0-6]" => 5
+                                         if "$]" >= 5.008 and "$]" <= 5.008_006;
  my $desc = 'exception with an eval and a local $@ in between';
  local $hurp = 'durp';
  local $@;
