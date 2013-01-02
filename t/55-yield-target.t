@@ -63,7 +63,9 @@ is_deeply \@res, [ 15, 19 ], 'yield() in for () { ... }';
 is $loop, 21, 'yield() exited while';
 is_deeply \@res, [ 20, 23 ], 'yield() in while () { ... }';
 
-{
+SKIP: {
+ skip '"eval { $str =~ s/./die q[foo]/e }" breaks havoc on perl 5.8 and below'
+                                                           => 1 if "$]" < 5.010;
  my $s = 'a';
  local $@;
  eval {

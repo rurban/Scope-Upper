@@ -121,7 +121,9 @@ sub guard { VPIT::TestHelpers::Guard->new(sub { ++$destroyed }) }
  is "@res", '1 2 3 4', 'leave with arguments';
 }
 
-{
+SKIP: {
+ skip '"eval { $str =~ s/./die q[foo]/e }" breaks havoc on perl 5.8 and below'
+                                                           => 1 if "$]" < 5.010;
  my $s = 'a';
  local $@;
  eval {
