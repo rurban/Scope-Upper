@@ -2680,12 +2680,14 @@ context_info_warnings_off:
   } else if (old_warnings == pWARN_ALL) {
    HV *bits;
 context_info_warnings_on:
+#if SU_HAS_PERL(5, 8, 7)
    bits = get_hv("warnings::Bits", 0);
    if (bits) {
     SV **bits_all = hv_fetchs(bits, "all", FALSE);
     if (bits_all)
      mask = sv_mortalcopy(*bits_all);
    }
+#endif
    if (!mask)
     mask = su_newmortal_pvn(WARN_ALLstring, WARNsize);
   } else {
