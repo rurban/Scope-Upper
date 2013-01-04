@@ -45,8 +45,10 @@ sub expected {
  }
 
  if ($top) {
-  $want   = "$]" < 5.015_001 ? '' : undef;
-  $hints &= ~HINT_BLOCK_SCOPE if $Config{usesitecustomize};
+  $want      = "$]" < 5.015_001 ? '' : undef;
+  $hints    &= ~HINT_BLOCK_SCOPE if $Config{usesitecustomize};
+  $warnings  = sub { use warnings; (caller 0)[9] }->() if  "$]" < 5.007
+                                                       and not $^W;
  }
 
  my @exp = (
