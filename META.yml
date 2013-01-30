@@ -3,6 +3,7 @@ abstract: 'Act on upper scopes.'
 author:
   - 'Vincent Pit <perl@profvince.com>'
 build_requires:
+  Config: 0
   Exporter: 0
   ExtUtils::MakeMaker: 0
   Test::More: 0
@@ -12,7 +13,7 @@ configure_requires:
   Config: 0
   ExtUtils::MakeMaker: 0
 dynamic_config: 1
-generated_by: 'ExtUtils::MakeMaker version 6.6302, CPAN::Meta::Converter version 2.120921'
+generated_by: 'ExtUtils::MakeMaker version 6.64, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -26,10 +27,10 @@ requires:
   Exporter: 0
   XSLoader: 0
   base: 0
-  perl: 5.006
+  perl: 5.006001
 resources:
   bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Scope-Upper
   homepage: http://search.cpan.org/dist/Scope-Upper/
   license: http://dev.perl.org/licenses/
   repository: http://git.profvince.com/?p=perl%2Fmodules%2FScope-Upper.git
-version: 0.21
+version: 0.22

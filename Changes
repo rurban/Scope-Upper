@@ -1,5 +1,18 @@
 Revision history for Scope-Upper
 
+0.22    2013-01-30 23:35 UTC
+        + Chg : perl 5.6.1 is required.
+        + Fix : context_info() now ignores %warnings::Bits for perl 5.8.6 and
+                below, just like caller().
+        + Fix : [RT #82220] : Scope-Upper-0.21 test stuck on Windows perl 5.12.3
+                t/93-pod-spelling.t will not crash anymore on perl 5.12 and
+                below.
+                Thanks Gabor Szabo for reporting and Slaven Rezic for debugging
+                this issue.
+        + Tst : Rare test failures of t/07-context_info.t on perl 5.6,
+                t/55-yield-target.t on perl 5.[68], and t/63-uplevel-ctl.t on
+                perl 5.8.[345] have been addressed.
+
 0.21    2012-09-21 15:10 UTC
         + Fix : context_info() has been taught about perl 5.17.4.
         + Fix : t/07-context_info.t will no longer fail with perls that have

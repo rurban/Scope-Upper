@@ -4,7 +4,7 @@
       "Vincent Pit <perl@profvince.com>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.6302, CPAN::Meta::Converter version 2.120921",
+   "generated_by" : "ExtUtils::MakeMaker version 6.64, CPAN::Meta::Converter version 2.120921",
    "license" : [
       "perl_5"
    ],
@@ -22,6 +22,7 @@
    "prereqs" : {
       "build" : {
          "requires" : {
+            "Config" : "0",
             "Exporter" : "0",
             "ExtUtils::MakeMaker" : "0",
             "Test::More" : "0",
@@ -40,7 +41,7 @@
             "Exporter" : "0",
             "XSLoader" : "0",
             "base" : "0",
-            "perl" : "5.006"
+            "perl" : "5.006001"
          }
       }
    },
@@ -57,5 +58,5 @@
          "url" : "http://git.profvince.com/?p=perl%2Fmodules%2FScope-Upper.git"
       }
    },
-   "version" : "0.21"
+   "version" : "0.22"
 }
