@@ -65,7 +65,6 @@ t/91-pod.t
 t/92-pod-coverage.t
 t/93-pod-spelling.t
 t/95-portability-files.t
-t/99-kwalitee.t
 t/lib/Scope/Upper/TestGenerator.pm
 t/lib/Scope/Upper/TestThreads.pm
 t/lib/Test/Leaner.pm
