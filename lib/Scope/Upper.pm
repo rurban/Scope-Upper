@@ -182,7 +182,7 @@ execute a subroutine in the setting of an upper subroutine stack frame with L</u
 
 =item *
 
-uniquely identify contextes with L</uid> and L</validate_uid>.
+uniquely identify contexts with L</uid> and L</validate_uid>.
 
 =back
 
@@ -290,7 +290,7 @@ A glob, in which case C<$key> is ignored and the call is equivalent to C<local *
 
 =item *
 
-A string beginning with C<'@'> or C<'%'>, for which the call is equivalent to respectiveley C<local $a[$key]; delete $a[$key]> and C<local $h{$key}; delete $h{$key}>.
+A string beginning with C<'@'> or C<'%'>, for which the call is equivalent to respectively C<local $a[$key]; delete $a[$key]> and C<local $h{$key}; delete $h{$key}>.
 
 =item *
 
@@ -603,7 +603,7 @@ The context of the current scope.
 =head2 Getting a context from a context
 
 For any of those functions, C<$from> is expected to be a context.
-When omitted, it defaults to the the current context.
+When omitted, it defaults to the current context.
 
 =head3 C<UP>
 
@@ -787,7 +787,7 @@ when the runloop callback is replaced by another module.
 
 In those three cases, L</uplevel> will look for a C<goto &sub> statement in its callback and, if there is one, throw an exception before executing the code.
 
-Moreover, in order to handle C<goto> statements properly, L</uplevel> currently has to suffer a run-time overhead proportional to the size of the the callback in every case (with a small ratio), and proportional to the size of B<all> the code executed as the result of the L</uplevel> call (including subroutine calls inside the callback) when a C<goto> statement is found in the L</uplevel> callback.
+Moreover, in order to handle C<goto> statements properly, L</uplevel> currently has to suffer a run-time overhead proportional to the size of the callback in every case (with a small ratio), and proportional to the size of B<all> the code executed as the result of the L</uplevel> call (including subroutine calls inside the callback) when a C<goto> statement is found in the L</uplevel> callback.
 Despite this shortcoming, this XS version of L</uplevel> should still run way faster than the pure-Perl version from L<Sub::Uplevel>.
 
 =head1 DEPENDENCIES
