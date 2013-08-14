@@ -210,6 +210,12 @@ SKIP: {
                                                                 if "$]" < 5.010;
 
  eval <<'TEST_GIVEN';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   my $desc = 'given';
   my $base = HERE;
@@ -224,6 +230,12 @@ TEST_GIVEN
  diag $@ if $@;
 
  eval <<'TEST_GIVEN_WHEN';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   my $desc = 'when in given';
   my $base = HERE;
@@ -241,6 +253,12 @@ TEST_GIVEN_WHEN
  diag $@ if $@;
 
  eval <<'TEST_GIVEN_DEFAULT';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   my $desc = 'default in given';
   my $base = HERE;
@@ -258,6 +276,12 @@ TEST_GIVEN_DEFAULT
  diag $@ if $@;
 
  eval <<'TEST_FOR_WHEN';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   my $desc = 'when in for';
   my $base = HERE;

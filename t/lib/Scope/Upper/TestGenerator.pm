@@ -39,6 +39,11 @@ my %exports = (
 );
 
 sub import {
+ if ("$]" >= 5.017_011) {
+  require warnings;
+  warnings->unimport('experimental::smartmatch');
+ }
+
  if ("$]" >= 5.010_001) {
   require feature;
   feature->import('switch');

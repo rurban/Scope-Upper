@@ -83,6 +83,12 @@ SKIP: {
                                                                 if "$]" < 5.010;
 
  @res = eval <<'TESTCASE';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   (24, do {
    given (25) {
@@ -98,6 +104,12 @@ TESTCASE
  # end of the enclosing given block.
  @res = ();
  eval <<'TESTCASE';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   @res = (28, do {
    given (29) {
@@ -115,6 +127,12 @@ TESTCASE
  # But calling yield() in when() in for() sends us at the next iteration.
  @res = ();
  eval <<'TESTCASE';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   @res = (31, do {
    for (32, 33) {

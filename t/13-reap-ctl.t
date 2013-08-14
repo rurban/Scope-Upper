@@ -140,6 +140,12 @@ SKIP:
  skip 'Perl 5.10 required to test given/when' => 30 if "$]" < 5.010;
 
  eval <<' GIVEN_TEST_1';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   local $y;
   {
@@ -161,6 +167,12 @@ SKIP:
  fail $@ if $@;
 
  eval <<' GIVEN_TEST_2';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   local $y;
   {
@@ -184,6 +196,12 @@ SKIP:
  fail $@ if $@;
 
  eval <<' GIVEN_TEST_3';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   local $y;
   {
@@ -205,6 +223,12 @@ SKIP:
  fail $@ if $@;
 
  eval <<' GIVEN_TEST_4';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   local $y;
   {
@@ -228,6 +252,12 @@ SKIP:
  fail $@ if $@;
 
  eval <<' GIVEN_TEST_5';
+  BEGIN {
+   if ("$]" >= 5.017_011) {
+    require warnings;
+    warnings->unimport('experimental::smartmatch');
+   }
+  }
   use feature 'switch';
   local $y;
   {
