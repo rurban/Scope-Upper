@@ -61,10 +61,6 @@ t/84-stress-unwind.t
 t/85-stress-yield.t
 t/86-stress-uplevel.t
 t/87-stress-uid.t
-t/91-pod.t
-t/92-pod-coverage.t
-t/93-pod-spelling.t
-t/95-portability-files.t
 t/lib/Scope/Upper/TestGenerator.pm
 t/lib/Scope/Upper/TestThreads.pm
 t/lib/Test/Leaner.pm
