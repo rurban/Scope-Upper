@@ -797,7 +797,7 @@ L<perl> 5.6.1.
 A C compiler.
 This module may happen to build with a C++ compiler as well, but don't rely on it, as no guarantee is made in this regard.
 
-L<XSLoader> (core since perl 5.006).
+L<XSLoader> (core since perl 5.6.0).
 
 =head1 SEE ALSO
 
