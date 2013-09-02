@@ -1,5 +1,18 @@
 Revision history for Scope-Upper
 
+0.23    2013-09-02 11:30 UTC
+        This is a maintenance release. The code contains no functional change.
+        Satisfied users of version 0.22 can skip this update.
+        + Fix : [RT #87178] : typo fixes.
+                Thanks dsteinbrunner@pobox.com for the patch.
+        + Fix : [RT #88177] : 5.19.3 block hint test breakage
+                t/07-context_info.t has been taught about perl 5.19.3.
+                Thanks Andrew Main for the patch.
+        + Tst : Author tests are no longer bundled with this distribution.
+                They are only made available to authors in the git repository.
+        + Tst : "given is experimental" warnings when running tests on perl
+                5.18 and above have been silenced.
+
 0.22    2013-01-30 23:35 UTC
         + Chg : perl 5.6.1 is required.
         + Fix : context_info() now ignores %warnings::Bits for perl 5.8.6 and

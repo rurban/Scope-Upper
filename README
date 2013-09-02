@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.22
+    Version 0.23
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -157,7 +157,7 @@ DESCRIPTION
     *   execute a subroutine in the setting of an upper subroutine stack
         frame with "uplevel" ;
 
-    *   uniquely identify contextes with "uid" and "validate_uid".
+    *   uniquely identify contexts with "uid" and "validate_uid".
 
 FUNCTIONS
     In all those functions, $context refers to the target scope.
@@ -261,7 +261,7 @@ FUNCTIONS
         "local *x".
 
     *   A string beginning with '@' or '%', for which the call is equivalent
-        to respectiveley "local $a[$key]; delete $a[$key]" and "local
+        to respectively "local $a[$key]; delete $a[$key]" and "local
         $h{$key}; delete $h{$key}".
 
     *   A string beginning with '&', which more or less does "undef &func"
@@ -564,7 +564,7 @@ WORDS
 
   Getting a context from a context
     For any of those functions, $from is expected to be a context. When
-    omitted, it defaults to the the current context.
+    omitted, it defaults to the current context.
 
    "UP"
         my $upper_context = UP;
@@ -730,8 +730,8 @@ CAVEATS
 
     Moreover, in order to handle "goto" statements properly, "uplevel"
     currently has to suffer a run-time overhead proportional to the size of
-    the the callback in every case (with a small ratio), and proportional to
-    the size of all the code executed as the result of the "uplevel" call
+    the callback in every case (with a small ratio), and proportional to the
+    size of all the code executed as the result of the "uplevel" call
     (including subroutine calls inside the callback) when a "goto" statement
     is found in the "uplevel" callback. Despite this shortcoming, this XS
     version of "uplevel" should still run way faster than the pure-Perl
@@ -743,7 +743,7 @@ DEPENDENCIES
     A C compiler. This module may happen to build with a C++ compiler as
     well, but don't rely on it, as no guarantee is made in this regard.
 
-    XSLoader (core since perl 5.006).
+    XSLoader (core since perl 5.6.0).
 
 SEE ALSO
     "local" in perlfunc, "Temporary Values via local()" in perlsub.
