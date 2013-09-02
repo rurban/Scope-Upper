@@ -47,7 +47,7 @@ sub expected {
  if ($top) {
   $want      = "$]" < 5.015_001 ? '' : undef;
   $hints    &= ~HINT_BLOCK_SCOPE if $Config{usesitecustomize};
-  $hints    |= HINT_BLOCK_SCOPE if $] >= 5.019003;
+  $hints    |=  HINT_BLOCK_SCOPE if "$]" >= 5.019003;
   $warnings  = sub { use warnings; (caller 0)[9] }->() if  "$]" < 5.007
                                                        and not $^W;
  }
