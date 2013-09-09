@@ -1126,6 +1126,15 @@ STATIC void su_unwind(pTHX_ void *ud_) {
  PERL_UNUSED_VAR(ud_);
 
  PL_stack_sp = MY_CXT.unwind_storage.savesp;
+#if SU_HAS_PERL(5, 19, 4)
+ {
+  I32 i;
+  SV **sp = PL_stack_sp;
+  for (i = -items + 1; i <= 0; ++i)
+   if (!SvTEMP(sp[i]))
+    sv_2mortal(SvREFCNT_inc(sp[i]));
+ }
+#endif
 
  if (cxstack_ix > cxix)
   dounwind(cxix);
@@ -1301,6 +1310,15 @@ cxt_when:
  }
 
  PL_stack_sp = MY_CXT.yield_storage.savesp;
+#if SU_HAS_PERL(5, 19, 4)
+ {
+  I32 i;
+  SV **sp = PL_stack_sp;
+  for (i = -items + 1; i <= 0; ++i)
+   if (!SvTEMP(sp[i]))
+    sv_2mortal(SvREFCNT_inc(sp[i]));
+ }
+#endif
 
  if (cxstack_ix > cxix)
   dounwind(cxix);

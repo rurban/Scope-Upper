@@ -38,6 +38,7 @@ t/46-localize_delete-numerous.t
 t/50-unwind-target.t
 t/51-unwind-multi.t
 t/52-unwind-context.t
+t/53-unwind-misc.t
 t/54-unwind-threads.t
 t/55-yield-target.t
 t/57-yield-context.t
