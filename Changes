@@ -1,5 +1,9 @@
 Revision history for Scope-Upper
 
+0.24    2013-09-10 11:10 UTC
+        + Fix : Lexicals returned with unwind(), yield() and leave() will no
+                longer be lost on perl 5.19.4 and above.
+
 0.23    2013-09-02 11:30 UTC
         This is a maintenance release. The code contains no functional change.
         Satisfied users of version 0.22 can skip this update.
