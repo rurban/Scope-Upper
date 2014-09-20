@@ -1668,6 +1668,9 @@ STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
 #endif
 
  CvGV_set(cv, gv);
+#if SU_RELEASE && SU_HAS_PERL_EXACT(5, 21, 4)
+ CvNAMED_off(cv);
+#endif
  CvSTASH_set(cv, CvSTASH(proto));
  /* Commit 4c74a7df, publicized with perl 5.13.3, began to add backrefs to
   * stashes. CvSTASH_set() started to do it as well with commit c68d95645
