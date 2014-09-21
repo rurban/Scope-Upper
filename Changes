@@ -1,5 +1,10 @@
 Revision history for Scope-Upper
 
+0.25    2014-09-21 17:10 UTC
+        + Add : Support for the PERL_OP_PARENT optional feature introduced in
+                perl 5.21.2.
+        + Fix : Work around an assertion failure in perl 5.21.4.
+
 0.24    2013-09-10 11:10 UTC
         + Fix : Lexicals returned with unwind(), yield() and leave() will no
                 longer be lost on perl 5.19.4 and above.

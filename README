@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.24
+    Version 0.25
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -785,7 +785,7 @@ ACKNOWLEDGEMENTS
     Thanks to Shawn M. Moore for motivation.
 
 COPYRIGHT & LICENSE
-    Copyright 2008,2009,2010,2011,2012,2013 Vincent Pit, all rights
+    Copyright 2008,2009,2010,2011,2012,2013,2014 Vincent Pit, all rights
     reserved.
 
     This program is free software; you can redistribute it and/or modify it
