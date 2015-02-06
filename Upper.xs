@@ -1537,8 +1537,10 @@ STATIC void su_uplevel_restore(pTHX_ void *sus_) {
   * depth to be 0, or perl would complain about it being "still in use".
   * But we *know* that it cannot be so. */
  if (sud->renamed) {
-  CvDEPTH(sud->renamed)   = 0;
-  CvPADLIST(sud->renamed) = NULL;
+  if (!CvISXSUB(sud->renamed)) {
+   CvDEPTH(sud->renamed)   = 0;
+   CvPADLIST(sud->renamed) = NULL;
+  }
   SvREFCNT_dec(sud->renamed);
  }
 
@@ -1692,13 +1694,13 @@ STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
   CvROOT(cv)       = OpREFCNT_inc(CvROOT(proto));
   OP_REFCNT_UNLOCK;
   CvSTART(cv)      = CvSTART(proto);
+  CvPADLIST(cv)    = CvPADLIST(proto);
  }
  CvOUTSIDE(cv)     = CvOUTSIDE(proto);
 #ifdef CVf_WEAKOUTSIDE
  if (!(CvFLAGS(proto) & CVf_WEAKOUTSIDE))
 #endif
   SvREFCNT_inc_simple_void(CvOUTSIDE(cv));
- CvPADLIST(cv)     = CvPADLIST(proto);
 #ifdef CvOUTSIDE_SEQ
  CvOUTSIDE_SEQ(cv) = CvOUTSIDE_SEQ(proto);
 #endif
