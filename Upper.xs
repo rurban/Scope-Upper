@@ -2382,7 +2382,6 @@ XS(XS_Scope__Upper_leave) {
  dXSARGS;
 #endif
  dMY_CXT;
- I32 cxix;
 
  PERL_UNUSED_VAR(cv); /* -W */
  PERL_UNUSED_VAR(ax); /* -Wall */
