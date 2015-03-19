@@ -72,7 +72,7 @@
 #endif
 
 #ifndef newSV_type
-STATIC SV *su_newSV_type(pTHX_ svtype t) {
+static SV *su_newSV_type(pTHX_ svtype t) {
  SV *sv = newSV(0);
  SvUPGRADE(sv, t);
  return sv;
@@ -182,7 +182,7 @@ STATIC SV *su_newSV_type(pTHX_ svtype t) {
 #endif
 
 #ifndef OP_GIMME_REVERSE
-STATIC U8 su_op_gimme_reverse(U8 gimme) {
+static U8 su_op_gimme_reverse(U8 gimme) {
  switch (gimme) {
   case G_VOID:
    return OPf_WANT_VOID;
@@ -249,7 +249,7 @@ STATIC U8 su_op_gimme_reverse(U8 gimme) {
 # undef  MY_CXT
 # define MY_CXT       su_globaldata
 # undef  START_MY_CXT
-# define START_MY_CXT STATIC my_cxt_t MY_CXT;
+# define START_MY_CXT static my_cxt_t MY_CXT;
 # undef  MY_CXT_INIT
 # define MY_CXT_INIT  NOOP
 # undef  MY_CXT_CLONE
@@ -265,11 +265,11 @@ typedef struct {
  STRLEN  size;
 } su_uv_array;
 
-STATIC su_uv_array su_uid_seq_counter;
+static su_uv_array su_uid_seq_counter;
 
 #ifdef USE_ITHREADS
 
-STATIC perl_mutex su_uid_seq_counter_mutex;
+static perl_mutex su_uid_seq_counter_mutex;
 
 #define SU_LOCK(M)   MUTEX_LOCK(M)
 #define SU_UNLOCK(M) MUTEX_UNLOCK(M)
@@ -281,7 +281,7 @@ STATIC perl_mutex su_uid_seq_counter_mutex;
 
 #endif /* !USE_ITHREADS */
 
-STATIC UV su_uid_seq_next(pTHX_ UV depth) {
+static UV su_uid_seq_next(pTHX_ UV depth) {
 #define su_uid_seq_next(D) su_uid_seq_next(aTHX_ (D))
  UV seq;
  UV *seqs;
@@ -317,7 +317,7 @@ typedef struct {
 
 #define SU_UID_ACTIVE 1
 
-STATIC UV su_uid_depth(pTHX_ I32 cxix) {
+static UV su_uid_depth(pTHX_ I32 cxix) {
 #define su_uid_depth(I) su_uid_depth(aTHX_ (I))
  const PERL_SI *si;
  UV depth;
@@ -335,7 +335,7 @@ typedef struct {
  STRLEN   alloc;
 } su_uid_storage;
 
-STATIC void su_uid_storage_dup(pTHX_ su_uid_storage *new_cxt, const su_uid_storage *old_cxt, UV max_depth) {
+static void su_uid_storage_dup(pTHX_ su_uid_storage *new_cxt, const su_uid_storage *old_cxt, UV max_depth) {
 #define su_uid_storage_dup(N, O, D) su_uid_storage_dup(aTHX_ (N), (O), (D))
  su_uid **old_map = old_cxt->map;
 
@@ -436,7 +436,7 @@ typedef struct {
  bool           died;
 } su_uplevel_ud;
 
-STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
+static su_uplevel_ud *su_uplevel_ud_new(pTHX) {
 #define su_uplevel_ud_new() su_uplevel_ud_new(aTHX)
  su_uplevel_ud *sud;
  PERL_SI       *si;
@@ -459,7 +459,7 @@ STATIC su_uplevel_ud *su_uplevel_ud_new(pTHX) {
  return sud;
 }
 
-STATIC void su_uplevel_ud_delete(pTHX_ su_uplevel_ud *sud) {
+static void su_uplevel_ud_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_ud_delete(S) su_uplevel_ud_delete(aTHX_ (S))
  PERL_SI *si = sud->si;
 
@@ -563,7 +563,7 @@ START_MY_CXT
 
 /* ... Saving array elements ............................................... */
 
-STATIC I32 su_av_key2idx(pTHX_ AV *av, I32 key) {
+static I32 su_av_key2idx(pTHX_ AV *av, I32 key) {
 #define su_av_key2idx(A, K) su_av_key2idx(aTHX_ (A), (K))
  I32 idx;
 
@@ -598,7 +598,7 @@ typedef struct {
  I32 idx;
 } su_ud_adelete;
 
-STATIC void su_adelete(pTHX_ void *ud_) {
+static void su_adelete(pTHX_ void *ud_) {
  su_ud_adelete *ud = (su_ud_adelete *) ud_;
 
  av_delete(ud->av, ud->idx, G_DISCARD);
@@ -607,7 +607,7 @@ STATIC void su_adelete(pTHX_ void *ud_) {
  Safefree(ud);
 }
 
-STATIC void su_save_adelete(pTHX_ AV *av, I32 idx) {
+static void su_save_adelete(pTHX_ AV *av, I32 idx) {
 #define su_save_adelete(A, K) su_save_adelete(aTHX_ (A), (K))
  su_ud_adelete *ud;
 
@@ -623,7 +623,7 @@ STATIC void su_save_adelete(pTHX_ AV *av, I32 idx) {
 
 #endif /* SAVEADELETE */
 
-STATIC void su_save_aelem(pTHX_ AV *av, SV *key, SV *val) {
+static void su_save_aelem(pTHX_ AV *av, SV *key, SV *val) {
 #define su_save_aelem(A, K, V) su_save_aelem(aTHX_ (A), (K), (V))
  I32 idx;
  I32 preeminent = 1;
@@ -653,7 +653,7 @@ STATIC void su_save_aelem(pTHX_ AV *av, SV *key, SV *val) {
 
 /* ... Saving hash elements ................................................ */
 
-STATIC void su_save_helem(pTHX_ HV *hv, SV *keysv, SV *val) {
+static void su_save_helem(pTHX_ HV *hv, SV *keysv, SV *val) {
 #define su_save_helem(H, K, V) su_save_helem(aTHX_ (H), (K), (V))
  I32 preeminent = 1;
  HE *he;
@@ -700,7 +700,7 @@ typedef struct {
  CV *old_cv;
 } su_save_gvcv_ud;
 
-STATIC void su_restore_gvcv(pTHX_ void *ud_) {
+static void su_restore_gvcv(pTHX_ void *ud_) {
  su_save_gvcv_ud *ud = ud_;
  GV              *gv = ud->gv;
 
@@ -711,7 +711,7 @@ STATIC void su_restore_gvcv(pTHX_ void *ud_) {
  Safefree(ud);
 }
 
-STATIC void su_save_gvcv(pTHX_ GV *gv) {
+static void su_save_gvcv(pTHX_ GV *gv) {
 #define su_save_gvcv(G) su_save_gvcv(aTHX_ (G))
  su_save_gvcv_ud *ud;
 
@@ -754,7 +754,7 @@ typedef struct {
  SV *cb;
 } su_ud_reap;
 
-STATIC void su_call(pTHX_ void *ud_) {
+static void su_call(pTHX_ void *ud_) {
  su_ud_reap *ud = (su_ud_reap *) ud_;
 #if SU_SAVE_LAST_CX
  I32 cxix;
@@ -797,7 +797,7 @@ STATIC void su_call(pTHX_ void *ud_) {
  SU_UD_FREE(ud);
 }
 
-STATIC void su_reap(pTHX_ void *ud) {
+static void su_reap(pTHX_ void *ud) {
 #define su_reap(U) su_reap(aTHX_ (U))
  SU_D({
   PerlIO_printf(Perl_debug_log,
@@ -825,7 +825,7 @@ typedef struct {
  SU_UD_FREE(U);           \
 } STMT_END
 
-STATIC I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *elem) {
+static I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *elem) {
 #define su_ud_localize_init(UD, S, V, E) su_ud_localize_init(aTHX_ (UD), (S), (V), (E))
  UV deref = 0;
  svtype t = SVt_NULL;
@@ -906,7 +906,7 @@ STATIC I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *el
  return size;
 }
 
-STATIC void su_localize(pTHX_ void *ud_) {
+static void su_localize(pTHX_ void *ud_) {
 #define su_localize(U) su_localize(aTHX_ (U))
  su_ud_localize *ud = (su_ud_localize *) ud_;
  SV *sv   = ud->sv;
@@ -979,7 +979,7 @@ done:
 # define SU_CXNAME(C) "XXX"
 #endif
 
-STATIC void su_pop(pTHX_ void *ud) {
+static void su_pop(pTHX_ void *ud) {
 #define su_pop(U) su_pop(aTHX_ (U))
  I32 depth, base, mark, *origin;
  depth = SU_UD_DEPTH(ud);
@@ -1037,7 +1037,7 @@ STATIC void su_pop(pTHX_ void *ud) {
 
 /* --- Initialize the stack and the action userdata ------------------------ */
 
-STATIC I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
+static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 #define su_init(U, C, S) su_init(aTHX_ (U), (C), (S))
  I32 i, depth = 1, pad, offset, *origin;
 
@@ -1125,7 +1125,7 @@ STATIC I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
 /* --- Unwind stack -------------------------------------------------------- */
 
-STATIC void su_unwind(pTHX_ void *ud_) {
+static void su_unwind(pTHX_ void *ud_) {
  dMY_CXT;
  I32 cxix  = MY_CXT.unwind_storage.cxix;
  I32 items = MY_CXT.unwind_storage.items;
@@ -1181,7 +1181,7 @@ STATIC void su_unwind(pTHX_ void *ud_) {
 # define SU_RETOP_LOOP(C) ((C)->blk_loop.last_op->op_next)
 #endif
 
-STATIC void su_yield(pTHX_ void *ud_) {
+static void su_yield(pTHX_ void *ud_) {
  dMY_CXT;
  PERL_CONTEXT *cx;
  const char   *which = ud_;
@@ -1356,7 +1356,7 @@ cxt_when:
 #define SU_UPLEVEL_SAVE(f, t) STMT_START { sud->old_##f = PL_##f; PL_##f = (t); } STMT_END
 #define SU_UPLEVEL_RESTORE(f) STMT_START { PL_##f = sud->old_##f; } STMT_END
 
-STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX_ I32 cxix) {
+static su_uplevel_ud *su_uplevel_storage_new(pTHX_ I32 cxix) {
 #define su_uplevel_storage_new(I) su_uplevel_storage_new(aTHX_ (I))
  su_uplevel_ud *sud;
  UV depth;
@@ -1381,7 +1381,7 @@ STATIC su_uplevel_ud *su_uplevel_storage_new(pTHX_ I32 cxix) {
  return sud;
 }
 
-STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
+static void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_storage_delete(S) su_uplevel_storage_delete(aTHX_ (S))
  dMY_CXT;
 
@@ -1408,7 +1408,7 @@ STATIC void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
  }
 }
 
-STATIC int su_uplevel_goto_static(const OP *o) {
+static int su_uplevel_goto_static(const OP *o) {
  for (; o; o = OpSIBLING(o)) {
   /* goto ops are unops with kids. */
   if (!(o->op_flags & OPf_KIDS))
@@ -1433,7 +1433,7 @@ STATIC int su_uplevel_goto_static(const OP *o) {
 
 #if SU_UPLEVEL_HIJACKS_RUNOPS
 
-STATIC int su_uplevel_goto_runops(pTHX) {
+static int su_uplevel_goto_runops(pTHX) {
 #define su_uplevel_goto_runops() su_uplevel_goto_runops(aTHX)
  register OP *op;
  dVAR;
@@ -1493,7 +1493,7 @@ done:
 
 #define su_at_underscore(C) PadARRAY(PadlistARRAY(CvPADLIST(C))[CvDEPTH(C)])[0]
 
-STATIC void su_uplevel_restore(pTHX_ void *sus_) {
+static void su_uplevel_restore(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
  PERL_SI *cur = sud->old_curstackinfo;
  PERL_SI *si  = sud->si;
@@ -1655,7 +1655,7 @@ found_it:
  return;
 }
 
-STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
+static CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
 #define su_cv_clone(P, G) su_cv_clone(aTHX_ (P), (G))
  dVAR;
  CV *cv;
@@ -1716,7 +1716,7 @@ STATIC CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
  return cv;
 }
 
-STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
+static I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 #define su_uplevel(C, I, A) su_uplevel(aTHX_ (C), (I), (A))
  su_uplevel_ud *sud;
  const PERL_CONTEXT *cx = cxstack + cxix;
@@ -1897,7 +1897,7 @@ STATIC I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 
 /* --- Unique context ID --------------------------------------------------- */
 
-STATIC su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
+static su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
 #define su_uid_storage_fetch(D) su_uid_storage_fetch(aTHX_ (D))
  su_uid **map, *uid;
  STRLEN alloc;
@@ -1932,7 +1932,7 @@ STATIC su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
  return uid;
 }
 
-STATIC int su_uid_storage_check(pTHX_ UV depth, UV seq) {
+static int su_uid_storage_check(pTHX_ UV depth, UV seq) {
 #define su_uid_storage_check(D, S) su_uid_storage_check(aTHX_ (D), (S))
  su_uid *uid;
  dMY_CXT;
@@ -1945,13 +1945,13 @@ STATIC int su_uid_storage_check(pTHX_ UV depth, UV seq) {
  return uid && (uid->seq == seq) && (uid->flags & SU_UID_ACTIVE);
 }
 
-STATIC void su_uid_drop(pTHX_ void *ud_) {
+static void su_uid_drop(pTHX_ void *ud_) {
  su_uid *uid = ud_;
 
  uid->flags &= ~SU_UID_ACTIVE;
 }
 
-STATIC void su_uid_bump(pTHX_ void *ud_) {
+static void su_uid_bump(pTHX_ void *ud_) {
  su_ud_reap *ud  = ud_;
 
  SAVEDESTRUCTOR_X(su_uid_drop, ud->cb);
@@ -1959,7 +1959,7 @@ STATIC void su_uid_bump(pTHX_ void *ud_) {
  SU_UD_FREE(ud);
 }
 
-STATIC SV *su_uid_get(pTHX_ I32 cxix) {
+static SV *su_uid_get(pTHX_ I32 cxix) {
 #define su_uid_get(I) su_uid_get(aTHX_ (I))
  su_uid *uid;
  SV *uid_sv;
@@ -1994,7 +1994,7 @@ STATIC SV *su_uid_get(pTHX_ I32 cxix) {
 
 #define IS_NUMBER_IN_UV 0x1
 
-STATIC int su_grok_number(pTHX_ const char *s, STRLEN len, UV *valuep) {
+static int su_grok_number(pTHX_ const char *s, STRLEN len, UV *valuep) {
 #define su_grok_number(S, L, VP) su_grok_number(aTHX_ (S), (L), (VP))
  STRLEN i;
  SV *tmpsv;
@@ -2015,7 +2015,7 @@ STATIC int su_grok_number(pTHX_ const char *s, STRLEN len, UV *valuep) {
 
 #endif /* !grok_number */
 
-STATIC int su_uid_validate(pTHX_ SV *uid) {
+static int su_uid_validate(pTHX_ SV *uid) {
 #define su_uid_validate(U) su_uid_validate(aTHX_ (U))
  const char *s;
  STRLEN len, p = 0;
@@ -2047,7 +2047,7 @@ STATIC int su_uid_validate(pTHX_ SV *uid) {
 /* Remove sequences of BLOCKs having DB for stash, followed by a SUB context
  * for the debugger callback. */
 
-STATIC I32 su_context_skip_db(pTHX_ I32 cxix) {
+static I32 su_context_skip_db(pTHX_ I32 cxix) {
 #define su_context_skip_db(C) su_context_skip_db(aTHX_ (C))
  I32 i;
 
@@ -2082,7 +2082,7 @@ STATIC I32 su_context_skip_db(pTHX_ I32 cxix) {
 }
 
 
-STATIC I32 su_context_normalize_up(pTHX_ I32 cxix) {
+static I32 su_context_normalize_up(pTHX_ I32 cxix) {
 #define su_context_normalize_up(C) su_context_normalize_up(aTHX_ (C))
  PERL_CONTEXT *cx;
 
@@ -2118,7 +2118,7 @@ STATIC I32 su_context_normalize_up(pTHX_ I32 cxix) {
  return cxix;
 }
 
-STATIC I32 su_context_normalize_down(pTHX_ I32 cxix) {
+static I32 su_context_normalize_down(pTHX_ I32 cxix) {
 #define su_context_normalize_down(C) su_context_normalize_down(aTHX_ (C))
  PERL_CONTEXT *next;
 
@@ -2156,7 +2156,7 @@ STATIC I32 su_context_normalize_down(pTHX_ I32 cxix) {
 
 #define su_context_here() su_context_normalize_up(su_context_skip_db(cxstack_ix))
 
-STATIC I32 su_context_gimme(pTHX_ I32 cxix) {
+static I32 su_context_gimme(pTHX_ I32 cxix) {
 #define su_context_gimme(C) su_context_gimme(aTHX_ (C))
  I32 i;
 
@@ -2200,7 +2200,7 @@ STATIC I32 su_context_gimme(pTHX_ I32 cxix) {
 
 /* --- Interpreter setup/teardown ------------------------------------------ */
 
-STATIC void su_teardown(pTHX_ void *param) {
+static void su_teardown(pTHX_ void *param) {
  su_uplevel_ud *cur;
  su_uid **map;
  dMY_CXT;
@@ -2226,7 +2226,7 @@ STATIC void su_teardown(pTHX_ void *param) {
  return;
 }
 
-STATIC void su_setup(pTHX) {
+static void su_setup(pTHX) {
 #define su_setup() su_setup(aTHX)
  MY_CXT_INIT;
 
@@ -2344,7 +2344,7 @@ XS(XS_Scope__Upper_unwind) {
  croak("Can't return outside a subroutine");
 }
 
-STATIC const char su_yield_name[] = "yield";
+static const char su_yield_name[] = "yield";
 
 XS(XS_Scope__Upper_yield); /* prototype to pass -Wmissing-prototypes */
 
@@ -2375,7 +2375,7 @@ XS(XS_Scope__Upper_yield) {
  return;
 }
 
-STATIC const char su_leave_name[] = "leave";
+static const char su_leave_name[] = "leave";
 
 XS(XS_Scope__Upper_leave); /* prototype to pass -Wmissing-prototypes */
 
