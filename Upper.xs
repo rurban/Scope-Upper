@@ -2198,9 +2198,68 @@ static I32 su_context_gimme(pTHX_ I32 cxix) {
  return G_VOID;
 }
 
+/* --- Global setup/teardown ----------------------------------------------- */
+
+static U32 su_initialized = 0;
+
+static void su_global_teardown(pTHX_ void *root) {
+ if (!su_initialized)
+  return;
+
+#if SU_MULTIPLICITY
+ if (aTHX != root)
+  return;
+#endif
+
+ su_initialized = 0;
+
+ return;
+}
+
+XS(XS_Scope__Upper_unwind);
+XS(XS_Scope__Upper_yield);
+XS(XS_Scope__Upper_leave);
+
+#if SU_HAS_PERL(5, 9, 0)
+# define SU_XS_FILE_TYPE const char
+#else
+# define SU_XS_FILE_TYPE char
+#endif
+
+static void su_global_setup(pTHX_ SU_XS_FILE_TYPE *file) {
+#define su_global_setup(F) su_global_setup(aTHX_ (F))
+ HV *stash;
+
+ if (su_initialized)
+  return;
+
+ MUTEX_INIT(&su_uid_seq_counter_mutex);
+
+ su_uid_seq_counter.seqs = NULL;
+ su_uid_seq_counter.size = 0;
+
+ stash = gv_stashpv(__PACKAGE__, 1);
+ newCONSTSUB(stash, "TOP",           newSViv(0));
+ newCONSTSUB(stash, "SU_THREADSAFE", newSVuv(SU_THREADSAFE));
+
+ newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
+ newXSproto("Scope::Upper::yield",  XS_Scope__Upper_yield,  file, NULL);
+ newXSproto("Scope::Upper::leave",  XS_Scope__Upper_leave,  file, NULL);
+
+#if SU_MULTIPLICITY
+ call_atexit(su_global_teardown, aTHX);
+#else
+ call_atexit(su_global_teardown, NULL);
+#endif
+
+ su_initialized = 1;
+
+ return;
+}
+
 /* --- Interpreter setup/teardown ------------------------------------------ */
 
-static void su_teardown(pTHX_ void *param) {
+static void su_local_teardown(pTHX_ void *param) {
  su_uplevel_ud *cur;
  su_uid **map;
  dMY_CXT;
@@ -2226,8 +2285,8 @@ static void su_teardown(pTHX_ void *param) {
  return;
 }
 
-static void su_setup(pTHX) {
-#define su_setup() su_setup(aTHX)
+static void su_local_setup(pTHX) {
+#define su_local_setup() su_local_setup(aTHX)
  MY_CXT_INIT;
 
  MY_CXT.stack_placeholder = NULL;
@@ -2257,7 +2316,7 @@ static void su_setup(pTHX) {
  MY_CXT.uid_storage.used  = 0;
  MY_CXT.uid_storage.alloc = 0;
 
- call_atexit(su_teardown, NULL);
+ call_atexit(su_local_teardown, NULL);
 
  return;
 }
@@ -2299,8 +2358,6 @@ default_cx:                     \
 #else
 # define SU_INFO_COUNT 10
 #endif
-
-XS(XS_Scope__Upper_unwind); /* prototype to pass -Wmissing-prototypes */
 
 XS(XS_Scope__Upper_unwind) {
 #ifdef dVAR
@@ -2346,8 +2403,6 @@ XS(XS_Scope__Upper_unwind) {
 
 static const char su_yield_name[] = "yield";
 
-XS(XS_Scope__Upper_yield); /* prototype to pass -Wmissing-prototypes */
-
 XS(XS_Scope__Upper_yield) {
 #ifdef dVAR
  dVAR; dXSARGS;
@@ -2377,8 +2432,6 @@ XS(XS_Scope__Upper_yield) {
 
 static const char su_leave_name[] = "leave";
 
-XS(XS_Scope__Upper_leave); /* prototype to pass -Wmissing-prototypes */
-
 XS(XS_Scope__Upper_leave) {
 #ifdef dVAR
  dVAR; dXSARGS;
@@ -2406,22 +2459,8 @@ PROTOTYPES: ENABLE
 
 BOOT:
 {
- HV *stash;
-
- MUTEX_INIT(&su_uid_seq_counter_mutex);
-
- su_uid_seq_counter.seqs = NULL;
- su_uid_seq_counter.size = 0;
-
- stash = gv_stashpv(__PACKAGE__, 1);
- newCONSTSUB(stash, "TOP",           newSViv(0));
- newCONSTSUB(stash, "SU_THREADSAFE", newSVuv(SU_THREADSAFE));
-
- newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
- newXSproto("Scope::Upper::yield",  XS_Scope__Upper_yield,  file, NULL);
- newXSproto("Scope::Upper::leave",  XS_Scope__Upper_leave,  file, NULL);
-
- su_setup();
+ su_global_setup(file);
+ su_local_setup();
 }
 
 #if SU_THREADSAFE
