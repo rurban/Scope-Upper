@@ -1955,6 +1955,8 @@ STATIC void su_uid_bump(pTHX_ void *ud_) {
  su_ud_reap *ud  = ud_;
 
  SAVEDESTRUCTOR_X(su_uid_drop, ud->cb);
+
+ SU_UD_FREE(ud);
 }
 
 STATIC SV *su_uid_get(pTHX_ I32 cxix) {
