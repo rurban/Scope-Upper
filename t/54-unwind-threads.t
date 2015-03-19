@@ -3,12 +3,15 @@
 use strict;
 use warnings;
 
+use Scope::Upper qw<unwind UP>;
+
 use lib 't/lib';
-use Scope::Upper::TestThreads;
+use VPIT::TestHelpers (
+ threads => [ 'Scope::Upper' => Scope::Upper::SU_THREADSAFE ],
+ 'usleep',
+);
 
 use Test::Leaner;
-
-use Scope::Upper qw<unwind UP>;
 
 our $z;
 

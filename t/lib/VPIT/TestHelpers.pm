@@ -5,20 +5,56 @@ use warnings;
 
 use Config ();
 
-my %exports = (
+sub export_to_pkg {
+ my ($subs, $pkg) = @_;
+
+ while (my ($name, $code) = each %$subs) {
+  no strict 'refs';
+  *{$pkg.'::'.$name} = $code;
+ }
+
+ return 1;
+}
+
+my %default_exports = (
  load_or_skip     => \&load_or_skip,
  load_or_skip_all => \&load_or_skip_all,
  run_perl         => \&run_perl,
  skip_all         => \&skip_all,
 );
 
-sub import {
- my $pkg = caller;
+my %features = (
+ threads => \&init_threads,
+ usleep  => \&init_usleep,
+);
 
- while (my ($name, $code) = each %exports) {
-  no strict 'refs';
-  *{$pkg.'::'.$name} = $code;
+sub import {
+ shift;
+ my @opts = @_;
+
+ my %exports = %default_exports;
+
+ for (my $i = 0; $i <= $#opts; ++$i) {
+  my $feature = $opts[$i];
+  next unless defined $feature;
+
+  my $args;
+  if ($i < $#opts and defined $opts[$i+1] and ref $opts[$i+1] eq 'ARRAY') {
+   ++$i;
+   $args = $opts[$i];
+  } else {
+   $args = [ ];
+  }
+
+  my $handler = $features{$feature};
+  die "Unknown feature '$feature'" unless defined $handler;
+
+  my %syms = $handler->(@$args);
+
+  $exports{$_} = $syms{$_} for sort keys %syms;
  }
+
+ export_to_pkg \%exports => scalar caller;
 }
 
 my $test_sub = sub {
@@ -118,6 +154,64 @@ sub run_perl {
  $ENV{PATH}       = $PATH       if $^O eq 'cygwin'  and defined $PATH;
 
  system { $^X } $^X, '-T', map("-I$_", @INC), '-e', $code;
+}
+
+sub init_threads {
+ my ($pkg, $threadsafe, $force_var) = @_;
+
+ skip_all 'This perl wasn\'t built to support threads'
+                                            unless $Config::Config{useithreads};
+
+ $pkg = 'package' unless defined $pkg;
+ skip_all "This $pkg isn't thread safe" if defined $threadsafe and !$threadsafe;
+
+ $force_var = 'PERL_FORCE_TEST_THREADS' unless defined $force_var;
+ my $force  = $ENV{$force_var} ? 1 : !1;
+ skip_all 'perl 5.13.4 required to test thread safety'
+                                             unless $force or "$]" >= 5.013_004;
+
+ if (($INC{'Test/More.pm'} || $INC{'Test/Leaner.pm'}) && !$INC{'threads.pm'}) {
+  die 'Test::More/Test::Leaner was loaded too soon';
+ }
+
+ load_or_skip_all 'threads',         $force ? '0' : '1.67', [ ];
+ load_or_skip_all 'threads::shared', $force ? '0' : '1.14', [ ];
+
+ require Test::Leaner;
+
+ diag "Threads testing forced by \$ENV{$force_var}" if $force;
+
+ return spawn => \&spawn;
+}
+
+sub init_usleep {
+ my $usleep;
+
+ if (do { local $@; eval { require Time::HiRes; 1 } }) {
+  defined and diag "Using usleep() from Time::HiRes $_"
+                                                      for $Time::HiRes::VERSION;
+  $usleep = \&Time::HiRes::usleep;
+ } else {
+  diag 'Using fallback usleep()';
+  $usleep = sub {
+   my $s = int($_[0] / 2.5e5);
+   sleep $s if $s;
+  };
+ }
+
+ return usleep => $usleep;
+}
+
+sub spawn {
+ local $@;
+ my @diag;
+ my $thread = eval {
+  local $SIG{__WARN__} = sub { push @diag, "Thread creation warning: @_" };
+  threads->create(@_);
+ };
+ push @diag, "Thread creation error: $@" if $@;
+ diag @diag;
+ return $thread ? $thread : ();
 }
 
 package VPIT::TestHelpers::Guard;
