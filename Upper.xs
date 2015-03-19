@@ -2707,7 +2707,9 @@ PPCODE:
     goto context_info_warnings_off;
 #endif
   } else if (old_warnings == pWARN_NONE) {
+#if !SU_HAS_PERL(5, 17, 4)
 context_info_warnings_off:
+#endif
    mask = su_newmortal_pvn(WARN_NONEstring, WARNsize);
   } else if (old_warnings == pWARN_ALL) {
    HV *bits;
