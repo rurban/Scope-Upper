@@ -2211,6 +2211,13 @@ static void su_global_teardown(pTHX_ void *root) {
   return;
 #endif
 
+ SU_LOCK(&su_uid_seq_counter_mutex);
+ PerlMemShared_free(su_uid_seq_counter.seqs);
+ su_uid_seq_counter.size = 0;
+ SU_UNLOCK(&su_uid_seq_counter_mutex);
+
+ MUTEX_DESTROY(&su_uid_seq_counter_mutex);
+
  su_initialized = 0;
 
  return;
@@ -2235,8 +2242,10 @@ static void su_global_setup(pTHX_ SU_XS_FILE_TYPE *file) {
 
  MUTEX_INIT(&su_uid_seq_counter_mutex);
 
+ SU_LOCK(&su_uid_seq_counter_mutex);
  su_uid_seq_counter.seqs = NULL;
  su_uid_seq_counter.size = 0;
+ SU_UNLOCK(&su_uid_seq_counter_mutex);
 
  stash = gv_stashpv(__PACKAGE__, 1);
  newCONSTSUB(stash, "TOP",           newSViv(0));
