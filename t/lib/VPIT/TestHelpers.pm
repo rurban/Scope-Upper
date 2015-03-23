@@ -153,7 +153,12 @@ sub run_perl {
  $ENV{SystemRoot} = $SystemRoot if $^O eq 'MSWin32' and defined $SystemRoot;
  $ENV{PATH}       = $PATH       if $^O eq 'cygwin'  and defined $PATH;
 
- system { $^X } $^X, '-T', map("-I$_", @INC), '-e', $code;
+ my $perl = $^X;
+ unless (-e $perl and -x $perl) {
+  $perl = $Config::Config{perlpath};
+ }
+
+ system { $perl } $perl, '-T', map("-I$_", @INC), '-e', $code;
 }
 
 sub init_threads {
