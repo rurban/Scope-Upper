@@ -144,6 +144,10 @@ sub load_or_skip_all {
 sub run_perl {
  my $code = shift;
 
+ if ($code =~ /"/) {
+  die 'Double quotes in evaluated code are not portable';
+ }
+
  my ($SystemRoot, $PATH) = @ENV{qw<SystemRoot PATH>};
  my $ld_name  = $Config::Config{ldlibpthname};
  my $ldlibpth = $ENV{$ld_name};
@@ -156,6 +160,9 @@ sub run_perl {
  my $perl = $^X;
  unless (-e $perl and -x $perl) {
   $perl = $Config::Config{perlpath};
+  unless (-e $perl and -x $perl) {
+   return undef;
+  }
  }
 
  system { $perl } $perl, '-T', map("-I$_", @INC), '-e', $code;
