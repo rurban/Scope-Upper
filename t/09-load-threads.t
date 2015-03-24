@@ -57,7 +57,7 @@ BEGIN {
 
 my $could_not_create_thread = 'Could not create thread';
 
-use Test::Leaner tests => 1 + (2 + 2 * 2) + 6 + (1 + 2 * 4);
+use Test::Leaner tests => 1 + (2 + 2 * 2) + 6 + (2 * 4) + 2;
 
 sub is_loaded {
  my ($affirmative, $desc) = @_;
@@ -252,3 +252,6 @@ SKIP: {
 }
 
 is_loaded 0, 'main body, after simultaneous threads';
+
+do_load;
+is_loaded 1, 'main body, loaded at end';
