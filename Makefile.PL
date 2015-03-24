@@ -73,6 +73,7 @@ my %PREREQ_PM = (
 my %BUILD_REQUIRES = (
  'ExtUtils::MakeMaker' => 0,
  'Config'              => 0,
+ 'POSIX'               => 0,
  'Test::More'          => 0,
  %PREREQ_PM,
 );
