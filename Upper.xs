@@ -1381,6 +1381,8 @@ static su_uplevel_ud *su_uplevel_storage_new(pTHX_ I32 cxix) {
  return sud;
 }
 
+#if SU_HAS_PERL(5, 13, 7)
+
 static void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_storage_delete(S) su_uplevel_storage_delete(aTHX_ (S))
  dMY_CXT;
@@ -1407,6 +1409,8 @@ static void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
   MY_CXT.uplevel_storage.count++;
  }
 }
+
+#endif
 
 static int su_uplevel_goto_static(const OP *o) {
  for (; o; o = OpSIBLING(o)) {
