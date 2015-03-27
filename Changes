@@ -1,5 +1,20 @@
 Revision history for Scope-Upper
 
+0.27    2015-03-27 22:10 UTC
+        + Chg : The new environment variable to enable thread tests on older
+                perls is PERL_FORCE_TEST_THREADS. Note that this variable
+                should only be turned on by authors.
+        + Fix : Segfaults when the module is loaded by several threads (or
+                Windows emulated processes) ran in parallel.
+        + Fix : Memory leak with the uid() feature.
+        + Fix : Update the Windows ActivePerl + gcc 3.4 workaround for
+                ExtUtils::MakeMaker 7.04. Thanks Christian Walde for reporting
+                and feedback on this issue.
+        + Fix : reap(), localize(), localize_elem() and localize_delete()
+                will again work correctly on perl 5.19.4+ when the debugger
+                is enabled.
+        + Fix : Silence some compiler warnings.
+
 0.26    2015-03-12 23:30 UTC
         + Fix : [RT #100264] : Don't use CvPADLIST on XSUBs
                 Thanks Father Chrysostomos for reporting and contributing a

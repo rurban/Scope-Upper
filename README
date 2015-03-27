@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.26
+    Version 0.27
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -736,6 +736,11 @@ CAVEATS
     is found in the "uplevel" callback. Despite this shortcoming, this XS
     version of "uplevel" should still run way faster than the pure-Perl
     version from Sub::Uplevel.
+
+    Starting from "perl" 5.19.4, it is unfortunately no longer possible to
+    reliably throw exceptions from "uplevel"'d code while the debugger is in
+    use. This may be solved in a future version depending on how the core
+    evolves.
 
 DEPENDENCIES
     perl 5.6.1.

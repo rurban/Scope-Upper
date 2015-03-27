@@ -11,13 +11,13 @@ Scope::Upper - Act on upper scopes.
 
 =head1 VERSION
 
-Version 0.26
+Version 0.27
 
 =cut
 
 our $VERSION;
 BEGIN {
- $VERSION = '0.26';
+ $VERSION = '0.27';
 }
 
 =head1 SYNOPSIS
