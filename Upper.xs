@@ -1010,7 +1010,7 @@ static void su_pop(pTHX_ void *ud) {
 
 #if SU_HAS_PERL(5, 19, 4)
   cx = cxstack + cxstack_ix;
-  if (CxTYPE(cx) == CXt_SUB)
+  if (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT)
    save = PL_scopestack[cx->blk_oldscopesp - 1];
 #endif
 
@@ -1018,7 +1018,7 @@ static void su_pop(pTHX_ void *ud) {
   leave_scope(base);
 
 #if SU_HAS_PERL(5, 19, 4)
-  if (CxTYPE(cx) == CXt_SUB)
+  if (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT)
    PL_scopestack[cx->blk_oldscopesp - 1] = save;
 #endif
  }
