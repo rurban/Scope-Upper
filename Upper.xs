@@ -1001,9 +1001,26 @@ static void su_pop(pTHX_ void *ud) {
                      ud,                24, ' ',    mark,        base));
 
  if (base < mark) {
+#if SU_HAS_PERL(5, 19, 4)
+  I32 save = -1;
+  PERL_CONTEXT *cx;
+#endif
+
   SU_D(PerlIO_printf(Perl_debug_log, "%p: clear leftovers\n", ud));
+
+#if SU_HAS_PERL(5, 19, 4)
+  cx = cxstack + cxstack_ix;
+  if (CxTYPE(cx) == CXt_SUB)
+   save = PL_scopestack[cx->blk_oldscopesp - 1];
+#endif
+
   PL_savestack_ix = mark;
   leave_scope(base);
+
+#if SU_HAS_PERL(5, 19, 4)
+  if (CxTYPE(cx) == CXt_SUB)
+   PL_scopestack[cx->blk_oldscopesp - 1] = save;
+#endif
  }
  PL_savestack_ix = base;
 
