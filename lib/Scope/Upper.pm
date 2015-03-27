@@ -792,6 +792,9 @@ In those three cases, L</uplevel> will look for a C<goto &sub> statement in its 
 Moreover, in order to handle C<goto> statements properly, L</uplevel> currently has to suffer a run-time overhead proportional to the size of the callback in every case (with a small ratio), and proportional to the size of B<all> the code executed as the result of the L</uplevel> call (including subroutine calls inside the callback) when a C<goto> statement is found in the L</uplevel> callback.
 Despite this shortcoming, this XS version of L</uplevel> should still run way faster than the pure-Perl version from L<Sub::Uplevel>.
 
+Starting from C<perl> 5.19.4, it is unfortunately no longer possible to reliably throw exceptions from L</uplevel>'d code while the debugger is in use.
+This may be solved in a future version depending on how the core evolves.
+
 =head1 DEPENDENCIES
 
 L<perl> 5.6.1.
