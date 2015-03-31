@@ -2221,7 +2221,7 @@ static I32 su_context_gimme(pTHX_ I32 cxix) {
 
 /* --- Global setup/teardown ----------------------------------------------- */
 
-static U32 su_initialized = 0;
+static VOL U32 su_initialized = 0;
 
 static void su_global_teardown(pTHX_ void *root) {
  if (!su_initialized)
