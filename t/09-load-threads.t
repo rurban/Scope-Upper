@@ -175,16 +175,24 @@ is_loaded 0, 'main body, after nested loadings';
 use threads;
 use threads::shared;
 
-my @locks = (1) x 5;
-share($_) for @locks;
+my @locks_down = (1) x 5;
+my @locks_up   = (0) x scalar @locks_down;
+share($_) for @locks_down, @locks_up;
+
+my $peers = 2;
 
 sub sync_master {
  my ($id) = @_;
 
  {
-  lock $locks[$id];
-  $locks[$id] = 0;
-  cond_broadcast $locks[$id];
+  lock $locks_down[$id];
+  $locks_down[$id] = 0;
+  cond_broadcast $locks_down[$id];
+ }
+
+ {
+  lock $locks_up[$id];
+  cond_wait $locks_up[$id] until $locks_up[$id] == $peers;
  }
 }
 
@@ -192,8 +200,14 @@ sub sync_slave {
  my ($id) = @_;
 
  {
-  lock $locks[$id];
-  cond_wait $locks[$id] until $locks[$id] == 0;
+  lock $locks_down[$id];
+  cond_wait $locks_down[$id] until $locks_down[$id] == 0;
+ }
+
+ {
+  lock $locks_up[$id];
+  $locks_up[$id]++;
+  cond_signal $locks_up[$id];
  }
 }
 
@@ -238,7 +252,7 @@ SKIP: {
   return;
  });
 
- sync_master($_) for 0 .. $#locks;
+ sync_master($_) for 0 .. $#locks_down;
 
  $thr1->join;
  if (my $err = $thr1->error) {
