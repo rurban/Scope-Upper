@@ -59,18 +59,29 @@ BEGIN {
 
 my $could_not_create_thread = 'Could not create thread';
 
-use Test::Leaner tests => 1 + (2 + 2 * 2) + 6 + (2 * 4) + 2;
+use Test::Leaner tests => 1 + (2 + 2 * 2) + 6 + (2 * 4 + 1) * 2 + 1;
 
 sub is_loaded {
  my ($affirmative, $desc) = @_;
 
  my $res = load_test();
 
+ my $expected;
  if ($affirmative) {
-  is $res, 1, "$desc: module loaded";
+  $expected = 1;
+  $desc     = "$desc: module loaded";
  } else {
-  is $res, 0, "$desc: module not loaded";
+  $expected = 0;
+  $desc     = "$desc: module not loaded";
  }
+
+ unless (is $res, $expected, $desc) {
+  $res      = defined $res ? "'$res'" : 'undef';
+  $expected = "'$expected'";
+  diag("Test '$desc' failed: got $res, expected $expected");
+ }
+
+ return;
 }
 
 BEGIN {
@@ -175,14 +186,18 @@ is_loaded 0, 'main body, after nested loadings';
 use threads;
 use threads::shared;
 
-my @locks_down = (1) x 5;
-my @locks_up   = (0) x scalar @locks_down;
+my $sync_points = 7;
+
+my @locks_down = (1) x $sync_points;
+my @locks_up   = (0) x $sync_points;
 share($_) for @locks_down, @locks_up;
 
-my $peers = 2;
+my $default_peers = 2;
 
 sub sync_master {
- my ($id) = @_;
+ my ($id, $peers) = @_;
+
+ $peers = $default_peers unless defined $peers;
 
  {
   lock $locks_down[$id];
@@ -211,63 +226,103 @@ sub sync_slave {
  }
 }
 
-SKIP: {
- my $thr1 = spawn(sub {
-  my $here = 'first simultaneous thread';
-  is_loaded 0, "$here, beginning";
-  sync_slave 0;
-
-  do_load;
-  is_loaded 1, "$here, after loading";
-  sync_slave 1;
-  sync_slave 2;
-
-  sync_slave 3;
-  is_loaded 1, "$here, still loaded while also loaded in the other thread";
-  sync_slave 4;
-
-  is_loaded 1, "$here, end";
-
-  return;
- });
-
- skip "$could_not_create_thread (parallel 1)" => (4 * 2) unless defined $thr1;
-
- my $thr2 = spawn(sub {
-  my $here = 'second simultaneous thread';
-  is_loaded 0, "$here, beginning";
-  sync_slave 0;
-
-  sync_slave 1;
-  is_loaded 0, "$here, loaded in other thread but not here";
-  sync_slave 2;
-
-  do_load;
-  is_loaded 1, "$here, after loading";
-  sync_slave 3;
-  sync_slave 4;
-
-  is_loaded 1, "$here, end";
-
-  return;
- });
-
- sync_master($_) for 0 .. $#locks_down;
-
- $thr1->join;
- if (my $err = $thr1->error) {
-  die $err;
+for my $first_thread_ends_first (0, 1) {
+ for my $id (0 .. $sync_points - 1) {
+  {
+   lock $locks_down[$id];
+   $locks_down[$id] = 1;
+  }
+  {
+   lock $locks_up[$id];
+   $locks_up[$id] = 0;
+  }
  }
 
- skip "$could_not_create_thread (parallel 2)" => (4 * 1) unless defined $thr2;
+ my $thr1_end = 'finishes first';
+ my $thr2_end = 'finishes last';
 
- $thr2->join;
- if (my $err = $thr2->error) {
-  die $err;
+ ($thr1_end, $thr2_end) = ($thr2_end, $thr1_end)
+                                                unless $first_thread_ends_first;
+
+ SKIP: {
+  my $thr1 = spawn(sub {
+   my $here = "first simultaneous thread ($thr1_end)";
+   sync_slave 0;
+
+   is_loaded 0, "$here, beginning";
+   sync_slave 1;
+
+   do_load;
+   is_loaded 1, "$here, after loading";
+   sync_slave 2;
+   sync_slave 3;
+
+   sync_slave 4;
+   is_loaded 1, "$here, still loaded while also loaded in the other thread";
+   sync_slave 5;
+
+   sync_slave 6 unless $first_thread_ends_first;
+
+   is_loaded 1, "$here, end";
+
+   return;
+  });
+
+  skip "$could_not_create_thread (parallel 1)" => (4 * 2) unless defined $thr1;
+
+  my $thr2 = spawn(sub {
+   my $here = "second simultaneous thread ($thr2_end)";
+   sync_slave 0;
+
+   is_loaded 0, "$here, beginning";
+   sync_slave 1;
+
+   sync_slave 2;
+   sync_slave 3;
+   is_loaded 0, "$here, loaded in other thread but not here";
+
+   do_load;
+   is_loaded 1, "$here, after loading";
+   sync_slave 4;
+   sync_slave 5;
+
+   sync_slave 6 if $first_thread_ends_first;
+
+   is_loaded 1, "$here, end";
+
+   return;
+  });
+
+  sync_master($_) for 0 .. 5;
+
+  if (defined $thr2) {
+   ($thr2, $thr1) = ($thr1, $thr2) unless $first_thread_ends_first;
+
+   $thr1->join;
+   if (my $err = $thr1->error) {
+    die $err;
+   }
+
+   sync_master(6, 1);
+
+   $thr2->join;
+   if (my $err = $thr1->error) {
+    die $err;
+   }
+  } else {
+   sync_master(6, 1) unless $first_thread_ends_first;
+
+   $thr1->join;
+   if (my $err = $thr1->error) {
+    die $err;
+   }
+
+   skip "$could_not_create_thread (parallel 2)" => (4 * 1);
+  }
  }
+
+ is_loaded 0, 'main body, after simultaneous threads';
 }
-
-is_loaded 0, 'main body, after simultaneous threads';
 
 do_load;
 is_loaded 1, 'main body, loaded at end';
