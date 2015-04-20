@@ -1,17 +1,17 @@
-#!perl -T
+#!perl
 
 use strict;
 use warnings;
 
-use Scope::Upper qw<uid validate_uid UP HERE>;
-
 use lib 't/lib';
 use VPIT::TestHelpers (
- threads => [ 'Scope::Upper' => Scope::Upper::SU_THREADSAFE ],
+ threads => [ 'Scope::Upper' => 'Scope::Upper::SU_THREADSAFE()' ],
  'usleep',
 );
 
 use Test::Leaner;
+
+use Scope::Upper qw<uid validate_uid UP HERE>;
 
 my $top = uid;
 
@@ -27,7 +27,7 @@ sub cb {
 
  is uid(UP), $top, "uid(UP) == \$top (in thread $tid)";
 
- usleep rand(1e6);
+ usleep rand(2.5e5);
 
  ok validate_uid($here), "\$here is valid (in thread $tid)";
  ok !validate_uid($up),  "\$up is no longer valid (in thread $tid)";

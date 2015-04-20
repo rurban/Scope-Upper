@@ -3,9 +3,6 @@
 use strict;
 use warnings;
 
-use lib 't/lib';
-use VPIT::TestHelpers;
-
 my ($module, $thread_safe_var);
 BEGIN {
  $module          = 'Scope::Upper';
@@ -33,29 +30,8 @@ sub load_test {
 
 # Keep the rest of the file untouched
 
-BEGIN {
- my $is_threadsafe;
-
- if (defined $thread_safe_var) {
-  my $stat = run_perl "require POSIX; require $module; exit($thread_safe_var ? POSIX::EXIT_SUCCESS() : POSIX::EXIT_FAILURE())";
-  if (defined $stat) {
-   require POSIX;
-   my $res  = $stat >> 8;
-   if ($res == POSIX::EXIT_SUCCESS()) {
-    $is_threadsafe = 1;
-   } elsif ($res == POSIX::EXIT_FAILURE()) {
-    $is_threadsafe = !1;
-   }
-  }
-  if (not defined $is_threadsafe) {
-   skip_all "Could not detect if $module is thread safe or not";
-  }
- }
-
- VPIT::TestHelpers->import(
-  threads => [ $module => $is_threadsafe ],
- )
-}
+use lib 't/lib';
+use VPIT::TestHelpers threads => [ $module, $thread_safe_var ];
 
 my $could_not_create_thread = 'Could not create thread';
 

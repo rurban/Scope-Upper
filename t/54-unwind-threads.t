@@ -1,17 +1,17 @@
-#!perl -T
+#!perl
 
 use strict;
 use warnings;
 
-use Scope::Upper qw<unwind UP>;
-
 use lib 't/lib';
 use VPIT::TestHelpers (
- threads => [ 'Scope::Upper' => Scope::Upper::SU_THREADSAFE ],
+ threads => [ 'Scope::Upper' => 'Scope::Upper::SU_THREADSAFE()' ],
  'usleep',
 );
 
 use Test::Leaner;
+
+use Scope::Upper qw<unwind UP>;
 
 our $z;
 
@@ -20,7 +20,7 @@ sub up1 {
  local $z = $tid;
  my $p    = "[$tid] up1";
 
- usleep rand(1e6);
+ usleep rand(2.5e5);
 
  my @res = (
   -1,
