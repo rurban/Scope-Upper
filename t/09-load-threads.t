@@ -35,7 +35,9 @@ use VPIT::TestHelpers threads => [ $module, $thread_safe_var ];
 
 my $could_not_create_thread = 'Could not create thread';
 
-use Test::Leaner tests => 1 + (2 + 2 * 2) + 6 + (2 * 4 + 1) * 2 + 1;
+use Test::Leaner (
+ tests => 1 + (2 + 2 * 2) + 6 + (2 * 4 + 1) * 2 + (4 + 1) + (6 + 1) + 1
+);
 
 sub is_loaded {
  my ($affirmative, $desc) = @_;
@@ -116,7 +118,7 @@ is_loaded 0, 'main body, after serial loadings';
 # Test nested loadings
 
 SKIP: {
- my $thr = spawn(sub {
+ my $parent = spawn(sub {
   my $here = 'parent thread';
   is_loaded 0, "$here, beginning";
 
@@ -147,10 +149,11 @@ SKIP: {
   return;
  });
 
- skip "$could_not_create_thread (nested parent)" => (3 + 2) unless defined $thr;
+ skip "$could_not_create_thread (nested parent)" => (3 + 2)
+                                                         unless defined $parent;
 
- $thr->join;
- if (my $err = $thr->error) {
+ $parent->join;
+ if (my $err = $parent->error) {
   die $err;
  }
 }
@@ -299,6 +302,133 @@ for my $first_thread_ends_first (0, 1) {
 
  is_loaded 0, 'main body, after simultaneous threads';
 }
+
+# Test simple clone
+
+SKIP: {
+ my $parent = spawn(sub {
+  my $here = 'simple clone, parent thread';
+  is_loaded 0, "$here, beginning";
+
+  do_load;
+  is_loaded 1, "$here, after loading";
+
+  SKIP: {
+   my $kid = spawn(sub {
+    my $here = 'simple clone, child thread';
+
+    is_loaded 1, "$here, beginning";
+
+    return;
+   });
+
+   skip "$could_not_create_thread (simple clone child)" => 1
+                                                            unless defined $kid;
+
+   $kid->join;
+   if (my $err = $kid->error) {
+    die "in child thread: $err\n";
+   }
+  }
+
+  is_loaded 1, "$here, after child terminated";
+
+  return;
+ });
+
+ skip "$could_not_create_thread (simple clone parent)" => (3 + 1)
+                                                         unless defined $parent;
+
+ $parent->join;
+ if (my $err = $parent->error) {
+  die $err;
+ }
+}
+
+is_loaded 0, 'main body, after simple clone';
+
+# Test clone outliving its parent
+
+SKIP: {
+ my $kid_tid;
+ share($kid_tid);
+
+ my $kid_done;
+ share($kid_done);
+
+ my $parent = spawn(sub {
+  my $here = 'outliving clone, parent thread';
+  is_loaded 0, "$here, beginning";
+
+  my $no_kid;
+
+  do_load;
+  is_loaded 1, "$here, after loading";
+
+  SKIP: {
+   my $kid = spawn(sub {
+    my $here = 'outliving clone, child thread';
+
+    is_loaded 1, "$here, beginning";
+
+    {
+     lock $kid_tid;
+     $kid_tid = threads->tid();
+     cond_signal $kid_tid;
+    }
+
+    is_loaded 1, "$here, kid tid was communicated";
+
+    {
+     lock $kid_done;
+     cond_wait $kid_done until $kid_done;
+    }
+
+    is_loaded 1, "$here, end";
+
+    return;
+   });
+
+   unless (defined $kid) {
+    $no_kid = 1;
+    skip "$could_not_create_thread (outliving clone child)" => 3;
+   }
+  }
+
+  is_loaded 1, "$here, end";
+
+  return $no_kid;
+ });
+
+ skip "$could_not_create_thread (outliving clone parent)" => (3 + 3)
+                                                         unless defined $parent;
+
+ my $no_kid = $parent->join;
+ if (my $err = $parent->error) {
+  die $err;
+ }
+
+ unless ($no_kid) {
+  my $tid = do {
+   lock $kid_tid;
+   cond_wait $kid_tid until defined $kid_tid;
+   $kid_tid;
+  };
+
+  my $kid = threads->object($tid);
+  if (defined $kid) {
+   {
+    lock $kid_done;
+    $kid_done = 1;
+    cond_signal $kid_done;
+   }
+
+   $kid->join;
+  }
+ }
+}
+
+is_loaded 0, 'main body, after outliving clone';
 
 do_load;
 is_loaded 1, 'main body, loaded at end';
