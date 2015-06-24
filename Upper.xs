@@ -1220,12 +1220,12 @@ static void su_yield(pTHX_ void *ud_) {
 #if SU_HAS_PERL(5, 10, 0)
    if (cxix > 0) {
     PERL_CONTEXT *prev = cx - 1;
-    U8 type = CxTYPE(prev);
-    if ((type == CXt_GIVEN || type == CXt_WHEN)
+    U8       prev_type = CxTYPE(prev);
+    if ((prev_type == CXt_GIVEN || prev_type == CXt_WHEN)
         && (prev->blk_oldcop == cx->blk_oldcop)) {
      cxix--;
      cx = prev;
-     if (type == CXt_GIVEN)
+     if (prev_type == CXt_GIVEN)
       goto cxt_given;
      else
       goto cxt_when;
