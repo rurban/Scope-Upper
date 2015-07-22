@@ -973,10 +973,50 @@ done:
 
 /* --- Pop a context back -------------------------------------------------- */
 
-#if SU_DEBUG && defined(DEBUGGING)
+#ifdef DEBUGGING
 # define SU_CXNAME(C) PL_block_type[CxTYPE(C)]
 #else
-# define SU_CXNAME(C) "XXX"
+# if SU_HAS_PERL(5, 11, 0)
+static const char *su_block_type[] = {
+ "NULL",
+ "WHEN",
+ "BLOCK",
+ "GIVEN",
+ "LOOP_FOR",
+ "LOOP_PLAIN",
+ "LOOP_LAZYSV",
+ "LOOP_LAZYIV",
+ "SUB",
+ "FORMAT",
+ "EVAL",
+ "SUBST"
+};
+# elif SU_HAS_PERL(5, 9, 3)
+static const char *su_block_type[] = {
+ "NULL",
+ "SUB",
+ "EVAL",
+ "WHEN",
+ "SUBST",
+ "BLOCK",
+ "FORMAT",
+ "GIVEN",
+ "LOOP_FOR",
+ "LOOP_PLAIN",
+ "LOOP_LAZYSV",
+ "LOOP_LAZYIV"
+};
+# else
+static const char *su_block_type[] = {
+ "NULL",
+ "SUB",
+ "EVAL",
+ "LOOP",
+ "SUBST",
+ "BLOCK"
+};
+# endif
+# define SU_CXNAME(C) su_block_type[CxTYPE(C)]
 #endif
 
 static void su_pop(pTHX_ void *ud) {
