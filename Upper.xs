@@ -1056,7 +1056,7 @@ static void su_pop(pTHX_ void *ud) {
 
 static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 #define su_init(U, C, S) su_init(aTHX_ (U), (C), (S))
- I32 i, depth = 1, pad, offset, *origin;
+ I32 i, depth = 1, pad, offset, base, *origin;
 
  SU_D(PerlIO_printf(Perl_debug_log, "%p: ### init for cx %d\n", ud, cxix));
 
@@ -1096,11 +1096,12 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  SU_D(PerlIO_printf(Perl_debug_log, "%p: going down to depth %d\n", ud, depth));
 
  Newx(origin, depth + 1, I32);
- origin[0] = PL_scopestack[PL_scopestack_ix - depth];
- PL_scopestack[PL_scopestack_ix - depth] += size;
- for (i = depth - 1; i >= 1; --i) {
-  I32 j = PL_scopestack_ix - i;
-  origin[depth - i] = PL_scopestack[j];
+ base = PL_scopestack_ix - depth;
+ origin[0] = PL_scopestack[base];
+ PL_scopestack[base] += size;
+ for (i = 1; i < depth; ++i) {
+  I32 j = i + base;
+  origin[i] = PL_scopestack[j];
   PL_scopestack[j] += offset;
  }
  origin[depth] = PL_savestack_ix;
