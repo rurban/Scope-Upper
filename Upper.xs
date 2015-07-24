@@ -1096,7 +1096,7 @@ static void su_pop(pTHX_ void *ud) {
 
 static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 #define su_init(U, C, S) su_init(aTHX_ (U), (C), (S))
- I32 i, depth = 1, pad, offset, base, *origin;
+ I32 i, depth, pad, offset, base, *origin;
 
  SU_D(PerlIO_printf(Perl_debug_log, "%p: ### init for cx %d\n", ud, cxix));
 
@@ -1113,26 +1113,7 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  SU_D(PerlIO_printf(Perl_debug_log, "%p: size=%d pad=%d offset=%d\n",
                                      ud,    size,   pad,   offset));
 
- for (i = cxstack_ix; i > cxix; --i) {
-  PERL_CONTEXT *cx = cxstack + i;
-  switch (CxTYPE(cx)) {
-#if SU_HAS_PERL(5, 11, 0)
-   case CXt_LOOP_FOR:
-   case CXt_LOOP_PLAIN:
-   case CXt_LOOP_LAZYSV:
-   case CXt_LOOP_LAZYIV:
-#else
-   case CXt_LOOP:
-#endif
-    SU_D(PerlIO_printf(Perl_debug_log, "%p: cx %d is loop\n", ud, i));
-    depth += 2;
-    break;
-   default:
-    SU_D(PerlIO_printf(Perl_debug_log, "%p: cx %d is other\n", ud, i));
-    depth++;
-    break;
-  }
- }
+ depth = PL_scopestack_ix - cxstack[cxix].blk_oldscopesp;
  SU_D(PerlIO_printf(Perl_debug_log, "%p: going down to depth %d\n", ud, depth));
 
  Newx(origin, depth + 1, I32);
