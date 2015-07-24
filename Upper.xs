@@ -729,16 +729,23 @@ static void su_save_gvcv(pTHX_ GV *gv) {
 /* --- Actions ------------------------------------------------------------- */
 
 typedef struct {
- I32 depth;
- I32 pad;
+ U8   type;
+ U8   private;
+ U8   pad;
+ /* spare */
+ I32  depth;
  I32 *origin;
- void (*handler)(pTHX_ void *);
 } su_ud_common;
 
-#define SU_UD_DEPTH(U)   (((su_ud_common *) (U))->depth)
+#define SU_UD_TYPE(U)    (((su_ud_common *) (U))->type)
+#define SU_UD_PRIVATE(U) (((su_ud_common *) (U))->private)
 #define SU_UD_PAD(U)     (((su_ud_common *) (U))->pad)
+#define SU_UD_DEPTH(U)   (((su_ud_common *) (U))->depth)
 #define SU_UD_ORIGIN(U)  (((su_ud_common *) (U))->origin)
-#define SU_UD_HANDLER(U) (((su_ud_common *) (U))->handler)
+
+#define SU_UD_TYPE_REAP     0
+#define SU_UD_TYPE_LOCALIZE 1
+#define SU_UD_TYPE_UID      2
 
 #define SU_UD_FREE(U) STMT_START { \
  if (SU_UD_ORIGIN(U)) Safefree(SU_UD_ORIGIN(U)); \
@@ -815,7 +822,6 @@ typedef struct {
  SV    *sv;
  SV    *val;
  SV    *elem;
- svtype type;
 } su_ud_localize;
 
 #define SU_UD_LOCALIZE_FREE(U) STMT_START { \
@@ -898,10 +904,11 @@ static I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *el
  }
  /* When deref is set, val isn't NULL */
 
+ SU_UD_PRIVATE(ud) = t;
+
  ud->sv   = sv;
  ud->val  = val ? newSVsv(deref ? SvRV(val) : val) : NULL;
  ud->elem = SvREFCNT_inc(elem);
- ud->type = t;
 
  return size;
 }
@@ -912,7 +919,7 @@ static void su_localize(pTHX_ void *ud_) {
  SV *sv   = ud->sv;
  SV *val  = ud->val;
  SV *elem = ud->elem;
- svtype t = ud->type;
+ svtype t = SU_UD_PRIVATE(ud);
  GV *gv;
 
  if (SvTYPE(sv) >= SVt_PVGV) {
@@ -1019,6 +1026,14 @@ static const char *su_block_type[] = {
 # define SU_CXNAME(C) su_block_type[CxTYPE(C)]
 #endif
 
+static void su_uid_bump(pTHX_ void *);
+
+static void (*su_handler[])(pTHX_ void *) = {
+ su_reap,
+ su_localize,
+ su_uid_bump
+};
+
 static void su_pop(pTHX_ void *ud) {
 #define su_pop(U) su_pop(aTHX_ (U))
  I32 depth, base, mark, *origin;
@@ -1067,9 +1082,9 @@ static void su_pop(pTHX_ void *ud) {
  SU_UD_DEPTH(ud) = --depth;
 
  if (depth > 0) {
-  I32 pad;
+  U8 pad;
 
-  if ((pad = SU_UD_PAD(ud))) {
+  if ((pad = SU_UD_PAD(ud)) > 0) {
    dMY_CXT;
    do {
     SU_D(PerlIO_printf(Perl_debug_log,
@@ -1084,7 +1099,7 @@ static void su_pop(pTHX_ void *ud) {
            ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
   SAVEDESTRUCTOR_X(su_pop, ud);
  } else {
-  SU_UD_HANDLER(ud)(aTHX_ ud);
+  su_handler[SU_UD_TYPE(ud)](aTHX_ ud);
  }
 
  SU_D(PerlIO_printf(Perl_debug_log,
@@ -1096,7 +1111,8 @@ static void su_pop(pTHX_ void *ud) {
 
 static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 #define su_init(U, C, S) su_init(aTHX_ (U), (C), (S))
- I32 i, depth, pad, offset, base, *origin;
+ I32 i, depth, offset, base, *origin;
+ U8 pad;
 
  SU_D(PerlIO_printf(Perl_debug_log, "%p: ### init for cx %d\n", ud, cxix));
 
@@ -1127,9 +1143,9 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  }
  origin[depth] = PL_savestack_ix;
 
- SU_UD_ORIGIN(ud) = origin;
- SU_UD_DEPTH(ud)  = depth;
  SU_UD_PAD(ud)    = pad;
+ SU_UD_DEPTH(ud)  = depth;
+ SU_UD_ORIGIN(ud) = origin;
 
  /* Make sure the first destructor fires by pushing enough fake slots on the
   * stack. */
@@ -2019,7 +2035,7 @@ static SV *su_uid_get(pTHX_ I32 cxix) {
 
   Newx(ud, 1, su_ud_reap);
   SU_UD_ORIGIN(ud)  = NULL;
-  SU_UD_HANDLER(ud) = su_uid_bump;
+  SU_UD_TYPE(ud)    = SU_UD_TYPE_UID;
   ud->cb = (SV *) uid;
   su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
  }
@@ -2848,8 +2864,8 @@ CODE:
  SU_GET_CONTEXT(1, 1, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_reap);
- SU_UD_ORIGIN(ud)  = NULL;
- SU_UD_HANDLER(ud) = su_reap;
+ SU_UD_ORIGIN(ud) = NULL;
+ SU_UD_TYPE(ud)   = SU_UD_TYPE_REAP;
  ud->cb = newSVsv(hook);
  su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
 
@@ -2864,8 +2880,8 @@ CODE:
  SU_GET_CONTEXT(2, 2, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
- SU_UD_ORIGIN(ud)  = NULL;
- SU_UD_HANDLER(ud) = su_localize;
+ SU_UD_ORIGIN(ud) = NULL;
+ SU_UD_TYPE(ud)   = SU_UD_TYPE_LOCALIZE;
  size = su_ud_localize_init(ud, sv, val, NULL);
  su_init(ud, cxix, size);
 
@@ -2882,10 +2898,10 @@ CODE:
  SU_GET_CONTEXT(3, 3, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
- SU_UD_ORIGIN(ud)  = NULL;
- SU_UD_HANDLER(ud) = su_localize;
+ SU_UD_ORIGIN(ud) = NULL;
+ SU_UD_TYPE(ud)   = SU_UD_TYPE_LOCALIZE;
  size = su_ud_localize_init(ud, sv, val, elem);
- if (ud->type != SVt_PVAV && ud->type != SVt_PVHV) {
+ if (SU_UD_PRIVATE(ud) != SVt_PVAV && SU_UD_PRIVATE(ud) != SVt_PVHV) {
   SU_UD_LOCALIZE_FREE(ud);
   croak("Can't localize an element of something that isn't an array or a hash");
  }
@@ -2902,8 +2918,8 @@ CODE:
  SU_GET_CONTEXT(2, 2, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
- SU_UD_ORIGIN(ud)  = NULL;
- SU_UD_HANDLER(ud) = su_localize;
+ SU_UD_ORIGIN(ud) = NULL;
+ SU_UD_TYPE(ud)   = SU_UD_TYPE_LOCALIZE;
  size = su_ud_localize_init(ud, sv, NULL, elem);
  su_init(ud, cxix, size);
 
