@@ -834,8 +834,6 @@ You can find documentation for this module with the perldoc command.
 
     perldoc Scope::Upper
 
-Tests code coverage report is available at L<http://www.profvince.com/perl/cover/Scope-Upper>.
-
 =head1 ACKNOWLEDGEMENTS
 
 Inspired by Ricardo Signes.
