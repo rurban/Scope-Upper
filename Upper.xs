@@ -804,17 +804,6 @@ static void su_call(pTHX_ void *ud_) {
  SU_UD_FREE(ud);
 }
 
-static void su_reap(pTHX_ void *ud) {
-#define su_reap(U) su_reap(aTHX_ (U))
- SU_D({
-  PerlIO_printf(Perl_debug_log,
-                "%p: === reap\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
-                 ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
- });
-
- SAVEDESTRUCTOR_X(su_call, ud);
-}
-
 /* ... Localize & localize array/hash element .............................. */
 
 typedef struct {
@@ -1026,13 +1015,7 @@ static const char *su_block_type[] = {
 # define SU_CXNAME(C) su_block_type[CxTYPE(C)]
 #endif
 
-static void su_uid_bump(pTHX_ void *);
-
-static void (*su_handler[])(pTHX_ void *) = {
- su_reap,
- su_localize,
- su_uid_bump
-};
+static void su_uid_bump(pTHX_ void *ud_);
 
 static void su_pop(pTHX_ void *ud) {
 #define su_pop(U) su_pop(aTHX_ (U))
@@ -1099,7 +1082,23 @@ static void su_pop(pTHX_ void *ud) {
            ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
   SAVEDESTRUCTOR_X(su_pop, ud);
  } else {
-  su_handler[SU_UD_TYPE(ud)](aTHX_ ud);
+  switch (SU_UD_TYPE(ud)) {
+   case SU_UD_TYPE_REAP: {
+    SU_D({
+     PerlIO_printf(Perl_debug_log,
+                "%p: === reap\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
+                 ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
+    });
+    SAVEDESTRUCTOR_X(su_call, ud);
+    break;
+   }
+   case SU_UD_TYPE_LOCALIZE:
+    su_localize(ud);
+    break;
+   case SU_UD_TYPE_UID:
+    su_uid_bump(aTHX_ ud);
+    break;
+  }
  }
 
  SU_D(PerlIO_printf(Perl_debug_log,
