@@ -2872,7 +2872,9 @@ CODE:
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_reap);
  SU_UD_TYPE(ud) = SU_UD_TYPE_REAP;
- ud->cb         = newSVsv(hook);
+ ud->cb         = (SvROK(hook) && SvTYPE(SvRV(hook)) >= SVt_PVCV)
+                  ? SvRV(hook) : hook;
+ SvREFCNT_inc_simple_void(ud->cb);
  su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
 
 void
