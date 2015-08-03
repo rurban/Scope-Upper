@@ -758,11 +758,12 @@ typedef struct {
 
 typedef struct {
  su_ud_common ci;
- SV *cb;
+ SV          *cb;
 } su_ud_reap;
 
-static void su_call(pTHX_ void *ud_) {
- su_ud_reap *ud = (su_ud_reap *) ud_;
+#define SU_UD_REAP_CB(U) (((su_ud_reap *) (U))->cb)
+
+static void su_call(pTHX_ SV *cb) {
 #if SU_SAVE_LAST_CX
  I32 cxix;
  PERL_CONTEXT saved_cx;
@@ -772,8 +773,8 @@ static void su_call(pTHX_ void *ud_) {
 
  SU_D({
   PerlIO_printf(Perl_debug_log,
-                "%p: @@@ call\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
-                 ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
+                "@@@ call scope_ix=%2d save_ix=%2d\n",
+                PL_scopestack_ix, PL_savestack_ix);
  });
 
  ENTER;
@@ -789,7 +790,7 @@ static void su_call(pTHX_ void *ud_) {
  saved_cx = cxstack[cxix];
 #endif /* SU_SAVE_LAST_CX */
 
- call_sv(ud->cb, G_VOID);
+ call_sv(cb, G_VOID);
 
 #if SU_SAVE_LAST_CX
  cxstack[cxix] = saved_cx;
@@ -800,24 +801,29 @@ static void su_call(pTHX_ void *ud_) {
  FREETMPS;
  LEAVE;
 
- SvREFCNT_dec(ud->cb);
- SU_UD_FREE(ud);
+ SvREFCNT_dec(cb);
+
+ return;
 }
 
 /* ... Localize & localize array/hash element .............................. */
 
 typedef struct {
  su_ud_common ci;
- SV    *sv;
- SV    *val;
- SV    *elem;
+ SV          *sv;
+ SV          *val;
+ SV          *elem;
 } su_ud_localize;
 
+#define SU_UD_LOCALIZE_SV(U)   (((su_ud_localize *) (U))->sv)
+#define SU_UD_LOCALIZE_VAL(U)  (((su_ud_localize *) (U))->val)
+#define SU_UD_LOCALIZE_ELEM(U) (((su_ud_localize *) (U))->elem)
+
 #define SU_UD_LOCALIZE_FREE(U) STMT_START { \
- SvREFCNT_dec((U)->elem); \
- SvREFCNT_dec((U)->val);  \
- SvREFCNT_dec((U)->sv);   \
- SU_UD_FREE(U);           \
+ SvREFCNT_dec(SU_UD_LOCALIZE_ELEM(U)); \
+ SvREFCNT_dec(SU_UD_LOCALIZE_VAL(U)); \
+ SvREFCNT_dec(SU_UD_LOCALIZE_SV(U)); \
+ SU_UD_FREE(U); \
 } STMT_END
 
 static I32 su_ud_localize_init(pTHX_ su_ud_localize *ud, SV *sv, SV *val, SV *elem) {
@@ -938,14 +944,14 @@ static void su_localize(pTHX_ void *ud_) {
   case SVt_PVAV:
    if (elem) {
     su_save_aelem(GvAV(gv), elem, val);
-    goto done;
+    return;
    } else
     save_ary(gv);
    break;
   case SVt_PVHV:
    if (elem) {
     su_save_helem(GvHV(gv), elem, val);
-    goto done;
+    return;
    } else
     save_hash(gv);
    break;
@@ -963,8 +969,24 @@ static void su_localize(pTHX_ void *ud_) {
  if (val)
   SvSetMagicSV((SV *) gv, val);
 
-done:
- SU_UD_LOCALIZE_FREE(ud);
+ return;
+}
+
+/* ... Unique context ID ................................................... */
+
+typedef struct {
+ su_ud_common ci;
+ su_uid      *uid;
+} su_ud_uid;
+
+#define SU_UD_UID_UID(U) (((su_ud_uid *) (U))->uid)
+
+static void su_uid_drop(pTHX_ void *ud_) {
+ su_uid *uid = ud_;
+
+ uid->flags &= ~SU_UID_ACTIVE;
+
+ return;
 }
 
 /* --- Pop a context back -------------------------------------------------- */
@@ -1014,8 +1036,6 @@ static const char *su_block_type[] = {
 # endif
 # define SU_CXNAME(C) su_block_type[CxTYPE(C)]
 #endif
-
-static void su_uid_bump(pTHX_ void *ud_);
 
 static void su_pop(pTHX_ void *ud) {
 #define su_pop(U) su_pop(aTHX_ (U))
@@ -1089,14 +1109,17 @@ static void su_pop(pTHX_ void *ud) {
                 "%p: === reap\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
                  ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
     });
-    SAVEDESTRUCTOR_X(su_call, ud);
+    SAVEDESTRUCTOR_X(su_call, SU_UD_REAP_CB(ud));
+    SU_UD_FREE(ud);
     break;
    }
    case SU_UD_TYPE_LOCALIZE:
     su_localize(ud);
+    SU_UD_LOCALIZE_FREE(ud);
     break;
    case SU_UD_TYPE_UID:
-    su_uid_bump(aTHX_ ud);
+    SAVEDESTRUCTOR_X(su_uid_drop, SU_UD_UID_UID(ud));
+    SU_UD_FREE(ud);
     break;
   }
  }
@@ -2003,20 +2026,6 @@ static int su_uid_storage_check(pTHX_ UV depth, UV seq) {
  return uid && (uid->seq == seq) && (uid->flags & SU_UID_ACTIVE);
 }
 
-static void su_uid_drop(pTHX_ void *ud_) {
- su_uid *uid = ud_;
-
- uid->flags &= ~SU_UID_ACTIVE;
-}
-
-static void su_uid_bump(pTHX_ void *ud_) {
- su_ud_reap *ud  = ud_;
-
- SAVEDESTRUCTOR_X(su_uid_drop, ud->cb);
-
- SU_UD_FREE(ud);
-}
-
 static SV *su_uid_get(pTHX_ I32 cxix) {
 #define su_uid_get(I) su_uid_get(aTHX_ (I))
  su_uid *uid;
@@ -2027,15 +2036,15 @@ static SV *su_uid_get(pTHX_ I32 cxix) {
  uid   = su_uid_storage_fetch(depth);
 
  if (!(uid->flags & SU_UID_ACTIVE)) {
-  su_ud_reap *ud;
+  su_ud_uid *ud;
 
   uid->seq = su_uid_seq_next(depth);
   uid->flags |= SU_UID_ACTIVE;
 
-  Newx(ud, 1, su_ud_reap);
+  Newx(ud, 1, su_ud_uid);
   SU_UD_ORIGIN(ud)  = NULL;
   SU_UD_TYPE(ud)    = SU_UD_TYPE_UID;
-  ud->cb = (SV *) uid;
+  ud->uid = uid;
   su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
  }
 
