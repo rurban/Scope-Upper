@@ -2038,13 +2038,12 @@ static SV *su_uid_get(pTHX_ I32 cxix) {
  if (!(uid->flags & SU_UID_ACTIVE)) {
   su_ud_uid *ud;
 
-  uid->seq = su_uid_seq_next(depth);
+  uid->seq    = su_uid_seq_next(depth);
   uid->flags |= SU_UID_ACTIVE;
 
   Newx(ud, 1, su_ud_uid);
-  SU_UD_ORIGIN(ud)  = NULL;
-  SU_UD_TYPE(ud)    = SU_UD_TYPE_UID;
-  ud->uid = uid;
+  SU_UD_TYPE(ud) = SU_UD_TYPE_UID;
+  ud->uid        = uid;
   su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
  }
 
@@ -2872,9 +2871,8 @@ CODE:
  SU_GET_CONTEXT(1, 1, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_reap);
- SU_UD_ORIGIN(ud) = NULL;
- SU_UD_TYPE(ud)   = SU_UD_TYPE_REAP;
- ud->cb = newSVsv(hook);
+ SU_UD_TYPE(ud) = SU_UD_TYPE_REAP;
+ ud->cb         = newSVsv(hook);
  su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
 
 void
@@ -2888,8 +2886,7 @@ CODE:
  SU_GET_CONTEXT(2, 2, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
- SU_UD_ORIGIN(ud) = NULL;
- SU_UD_TYPE(ud)   = SU_UD_TYPE_LOCALIZE;
+ SU_UD_TYPE(ud) = SU_UD_TYPE_LOCALIZE;
  size = su_ud_localize_init(ud, sv, val, NULL);
  su_init(ud, cxix, size);
 
@@ -2906,6 +2903,7 @@ CODE:
  SU_GET_CONTEXT(3, 3, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
+ /* Initialize SU_UD_ORIGIN(ud) in case SU_UD_LOCALIZE_FREE(ud) needs it */
  SU_UD_ORIGIN(ud) = NULL;
  SU_UD_TYPE(ud)   = SU_UD_TYPE_LOCALIZE;
  size = su_ud_localize_init(ud, sv, val, elem);
@@ -2926,8 +2924,7 @@ CODE:
  SU_GET_CONTEXT(2, 2, su_context_skip_db(cxstack_ix));
  cxix = su_context_normalize_down(cxix);
  Newx(ud, 1, su_ud_localize);
- SU_UD_ORIGIN(ud) = NULL;
- SU_UD_TYPE(ud)   = SU_UD_TYPE_LOCALIZE;
+ SU_UD_TYPE(ud) = SU_UD_TYPE_LOCALIZE;
  size = su_ud_localize_init(ud, sv, NULL, elem);
  su_init(ud, cxix, size);
 
