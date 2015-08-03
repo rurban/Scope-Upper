@@ -335,53 +335,47 @@ static UV su_uid_depth(pTHX_ I32 cxix) {
 }
 
 typedef struct {
- su_uid **map;
- STRLEN   used;
- STRLEN   alloc;
+ su_uid *map;
+ STRLEN  used;
+ STRLEN  alloc;
 } su_uid_storage;
 
 static void su_uid_storage_dup(pTHX_ su_uid_storage *new_cxt, const su_uid_storage *old_cxt, UV max_depth) {
 #define su_uid_storage_dup(N, O, D) su_uid_storage_dup(aTHX_ (N), (O), (D))
- su_uid **old_map = old_cxt->map;
+ su_uid *old_map = old_cxt->map;
 
  if (old_map) {
-  su_uid **new_map = new_cxt->map;
-  STRLEN old_used  = old_cxt->used;
-  STRLEN new_used, new_alloc;
-  STRLEN i;
+  su_uid *new_map  = new_cxt->map;
+  STRLEN  old_used = old_cxt->used;
+  STRLEN  new_used, new_alloc;
+  STRLEN  i;
 
-  new_used = max_depth < old_used ? max_depth : old_used;
+  new_used      = max_depth < old_used ? max_depth : old_used;
   new_cxt->used = new_used;
 
-  if (new_used <= new_cxt->alloc)
-   new_alloc = new_cxt->alloc;
-  else {
-   new_alloc = new_used;
-   Renew(new_map, new_alloc, su_uid *);
-   for (i = new_cxt->alloc; i < new_alloc; ++i)
-    new_map[i] = NULL;
+  if (new_used <= new_cxt->alloc) {
+   new_alloc      = new_cxt->alloc;
+  } else {
+   new_alloc      = new_used;
+   Renew(new_map, new_alloc, su_uid);
    new_cxt->map   = new_map;
    new_cxt->alloc = new_alloc;
   }
 
   for (i = 0; i < new_alloc; ++i) {
-   su_uid *new_uid = new_map[i];
+   su_uid *new_uid = new_map + i;
 
    if (i < new_used) { /* => i < max_depth && i < old_used */
-    su_uid *old_uid = old_map[i];
+    su_uid *old_uid = old_map + i;
 
     if (old_uid && (old_uid->flags & SU_UID_ACTIVE)) {
-     if (!new_uid) {
-      Newx(new_uid, 1, su_uid);
-      new_map[i] = new_uid;
-     }
      *new_uid = *old_uid;
      continue;
     }
    }
 
-   if (new_uid)
-    new_uid->flags &= ~SU_UID_ACTIVE;
+   new_uid->seq   = 0;
+   new_uid->flags = 0;
   }
  }
 
@@ -472,16 +466,7 @@ static void su_uplevel_ud_delete(pTHX_ su_uplevel_ud *sud) {
  SvREFCNT_dec(si->si_stack);
  Safefree(si);
 
- if (sud->tmp_uid_storage.map) {
-  su_uid **map   = sud->tmp_uid_storage.map;
-  STRLEN   alloc = sud->tmp_uid_storage.alloc;
-  STRLEN   i;
-
-  for (i = 0; i < alloc; ++i)
-   Safefree(map[i]);
-
-  Safefree(map);
- }
+ Safefree(sud->tmp_uid_storage.map);
 
  Safefree(sud);
 
@@ -979,17 +964,21 @@ static void su_localize(pTHX_ void *ud_) {
 
 /* ... Unique context ID ................................................... */
 
+/* We must pass the index because MY_CXT.uid_storage might be reallocated
+ * between the UID fetch and the invalidation at the end of scope. */
+
 typedef struct {
  su_ud_common ci;
- su_uid      *uid;
+ I32          idx;
 } su_ud_uid;
 
-#define SU_UD_UID_UID(U) (((su_ud_uid *) (U))->uid)
-
 static void su_uid_drop(pTHX_ void *ud_) {
- su_uid *uid = ud_;
+ su_ud_uid *ud = ud_;
+ dMY_CXT;
 
- uid->flags &= ~SU_UID_ACTIVE;
+ MY_CXT.uid_storage.map[ud->idx].flags &= ~SU_UID_ACTIVE;
+
+ SU_UD_FREE(ud);
 
  return;
 }
@@ -1123,8 +1112,7 @@ static void su_pop(pTHX_ void *ud) {
     SU_UD_LOCALIZE_FREE(ud);
     break;
    case SU_UD_TYPE_UID:
-    SAVEDESTRUCTOR_X(su_uid_drop, SU_UD_UID_UID(ud));
-    SU_UD_FREE(ud);
+    SAVEDESTRUCTOR_X(su_uid_drop, ud);
     break;
   }
  }
@@ -1472,14 +1460,12 @@ static void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
  sud->tmp_uid_storage = MY_CXT.uid_storage;
  MY_CXT.uid_storage   = sud->old_uid_storage;
  {
-  su_uid **map;
-  UV  i, alloc;
+  su_uid *map;
+  STRLEN  i, alloc;
   map   = sud->tmp_uid_storage.map;
   alloc = sud->tmp_uid_storage.alloc;
-  for (i = 0; i < alloc; ++i) {
-   if (map[i])
-    map[i]->flags &= SU_UID_ACTIVE;
-  }
+  for (i = 0; i < alloc; ++i)
+   map[i].flags &= ~SU_UID_ACTIVE;
  }
  MY_CXT.uplevel_storage.top = sud->next;
 
@@ -1985,8 +1971,8 @@ static I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
 
 static su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
 #define su_uid_storage_fetch(D) su_uid_storage_fetch(aTHX_ (D))
- su_uid **map, *uid;
- STRLEN alloc;
+ su_uid *map;
+ STRLEN  alloc;
  dMY_CXT;
 
  map   = MY_CXT.uid_storage.map;
@@ -1995,27 +1981,20 @@ static su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
  if (depth >= alloc) {
   STRLEN i;
 
-  Renew(map, depth + 1, su_uid *);
-  for (i = alloc; i <= depth; ++i)
-   map[i] = NULL;
+  Renew(map, depth + 1, su_uid);
+  for (i = alloc; i <= depth; ++i) {
+   map[i].seq   = 0;
+   map[i].flags = 0;
+  }
 
   MY_CXT.uid_storage.map   = map;
   MY_CXT.uid_storage.alloc = depth + 1;
  }
 
- uid = map[depth];
-
- if (!uid) {
-  Newx(uid, 1, su_uid);
-  uid->seq   = 0;
-  uid->flags = 0;
-  map[depth] = uid;
- }
-
  if (depth >= MY_CXT.uid_storage.used)
   MY_CXT.uid_storage.used = depth + 1;
 
- return uid;
+ return map + depth;
 }
 
 static int su_uid_storage_check(pTHX_ UV depth, UV seq) {
@@ -2026,16 +2005,16 @@ static int su_uid_storage_check(pTHX_ UV depth, UV seq) {
  if (depth >= MY_CXT.uid_storage.used)
   return 0;
 
- uid = MY_CXT.uid_storage.map[depth];
+ uid = MY_CXT.uid_storage.map + depth;
 
- return uid && (uid->seq == seq) && (uid->flags & SU_UID_ACTIVE);
+ return (uid->seq == seq) && (uid->flags & SU_UID_ACTIVE);
 }
 
 static SV *su_uid_get(pTHX_ I32 cxix) {
 #define su_uid_get(I) su_uid_get(aTHX_ (I))
  su_uid *uid;
- SV *uid_sv;
- UV depth;
+ SV     *uid_sv;
+ UV      depth;
 
  depth = su_uid_depth(cxix);
  uid   = su_uid_storage_fetch(depth);
@@ -2048,12 +2027,13 @@ static SV *su_uid_get(pTHX_ I32 cxix) {
 
   Newx(ud, 1, su_ud_uid);
   SU_UD_TYPE(ud) = SU_UD_TYPE_UID;
-  ud->uid        = uid;
+  ud->idx        = depth;
   su_init(ud, cxix, SU_SAVE_DESTRUCTOR_SIZE);
  }
 
  uid_sv = sv_newmortal();
  sv_setpvf(uid_sv, "%"UVuf"-%"UVuf, depth, uid->seq);
+
  return uid_sv;
 }
 
@@ -2341,16 +2321,9 @@ static void su_global_setup(pTHX_ SU_XS_FILE_TYPE *file) {
 
 static void su_local_teardown(pTHX_ void *param) {
  su_uplevel_ud *cur;
- su_uid **map;
  dMY_CXT;
 
- map = MY_CXT.uid_storage.map;
- if (map) {
-  STRLEN i;
-  for (i = 0; i < MY_CXT.uid_storage.used; ++i)
-   Safefree(map[i]);
-  Safefree(map);
- }
+ Safefree(MY_CXT.uid_storage.map);
 
  cur = MY_CXT.uplevel_storage.root;
  if (cur) {
