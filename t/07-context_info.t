@@ -12,7 +12,7 @@ use Config qw<%Config>;
 # change ; and that doesn't fit well with how we're testing things.
 
 use lib 't/lib';
-use Test::Leaner tests => 19 + 6;
+use Test::Leaner tests => 18 + 6;
 
 use Scope::Upper qw<context_info UP HERE CALLER>;
 
@@ -80,7 +80,6 @@ sub setup () {
 
 is_deeply [ context_info       ], $exp0, 'main : context_info';
 is_deeply [ context_info(HERE) ], $exp0, 'main : context_info HERE';
-is_deeply [ context_info(UP)   ], $exp0, 'main : context_info UP';
 is_deeply [ context_info(-1)   ], $exp0, 'main : context_info -1';
 
 package Scope::Upper::TestPkg::A; BEGIN { ::setup }

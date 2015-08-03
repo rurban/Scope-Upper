@@ -256,6 +256,10 @@ static U8 su_op_gimme_reverse(U8 gimme) {
 # define MY_CXT_CLONE NOOP
 #endif
 
+/* --- Error messages ------------------------------------------------------ */
+
+static const char su_stack_smash[] = "Cannot target a scope outside of the current stack";
+
 /* --- Unique context ID global storage ------------------------------------ */
 
 /* ... Sequence ID counter ................................................. */
@@ -2586,6 +2590,8 @@ PPCODE:
   --cxix;
   cxix = su_context_skip_db(cxix);
   cxix = su_context_normalize_up(cxix);
+ } else {
+  warn(su_stack_smash);
  }
  EXTEND(SP, 1);
  mPUSHi(cxix);
@@ -2642,8 +2648,10 @@ PPCODE:
  SU_GET_LEVEL(0, 0);
  cxix = su_context_here();
  while (--level >= 0) {
-  if (cxix <= 0)
+  if (cxix <= 0) {
+   warn(su_stack_smash);
    break;
+  }
   --cxix;
   cxix = su_context_skip_db(cxix);
   cxix = su_context_normalize_up(cxix);
@@ -2673,6 +2681,8 @@ PPCODE:
   }
  }
 done:
+ if (level >= 0)
+  warn(su_stack_smash);
  EXTEND(SP, 1);
  mPUSHi(cxix);
  XSRETURN(1);

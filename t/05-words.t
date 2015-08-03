@@ -5,20 +5,32 @@ use warnings;
 
 use Test::More;
 
-plan tests => 23 * ($^P ? 4 : 5) + ($^P ? 1 : 3) + 7 + 15 * 2;
+plan tests => 1 + 23 * ($^P ? 4 : 5) + ($^P ? 1 : 3) + 7 + (32 + 7);
 
 use Scope::Upper qw<:words>;
 
 # Tests with hardcoded values are for internal use only and doesn't imply any
 # kind of future compatibility on what the words should actually return.
 
+our $got_warn;
+my $warn_catcher = sub {
+ my $file = __FILE__;
+ ++$got_warn if $_[0] =~ /^Cannot target a scope outside of the current stack at \Q$file\E line \d+\.$/;
+ return;
+};
+my $old_sig_warn;
+
 my $top = HERE;
 
-is $top, 0,     'main : here' unless $^P;
-is TOP,  $top,  'main : top';
-is UP,   $top,  'main : up';
-is SUB,  undef, 'main : sub';
-is EVAL, undef, 'main : eval';
+is $top, 0,      'main : here' unless $^P;
+is TOP,  $top,   'main : top';
+$old_sig_warn = $SIG{__WARN__};
+local ($SIG{__WARN__}, $got_warn) = $warn_catcher;
+is UP,  $top,    'main : up';
+local $SIG{__WARN__} = $old_sig_warn;
+is $got_warn, 1, 'main : up warns';
+is SUB,  undef,  'main : sub';
+is EVAL, undef,  'main : eval';
 
 {
  my $desc = '{ 1 }';
@@ -330,27 +342,47 @@ SKIP: {
  is SCOPE,     $block, 'block : scope';
  is SCOPE(0),  $block, 'block : scope 0';
  is SCOPE(1),  $top,   'block : scope 1';
+ $old_sig_warn = $SIG{__WARN__};
+ local ($SIG{__WARN__}, $got_warn) = $warn_catcher;
+ is SCOPE(2),  $top,   'block : scope 2';
+ is $got_warn, 1,      'block : scope 2 warns';
+ local $got_warn;
  is CALLER,    $top,   'block : caller';
+ is $got_warn, 1,      'block : caller warns';
+ local $got_warn;
  is CALLER(0), $top,   'block : caller 0';
+ is $got_warn, 1,      'block : caller 0 warns';
+ local $got_warn;
  is CALLER(1), $top,   'block : caller 1';
+ is $got_warn, 1,      'block : caller 1 warns';
+ local $SIG{__WARN__} = $old_sig_warn;
  sub {
   my $sub = HERE;
   is SCOPE,     $sub,   'block sub : scope';
   is SCOPE(0),  $sub,   'block sub : scope 0';
   is SCOPE(1),  $block, 'block sub : scope 1';
+  is SCOPE(2),  $top,   'block sub : scope 2';
   is CALLER,    $sub,   'block sub : caller';
   is CALLER(0), $sub,   'block sub : caller 0';
+  $old_sig_warn = $SIG{__WARN__};
+  local ($SIG{__WARN__}, $got_warn) = $warn_catcher;
   is CALLER(1), $top,   'block sub : caller 1';
+  local $SIG{__WARN__} = $old_sig_warn;
+  is $got_warn, 1,      'block sub : caller 1 warns';
   for (1) {
    my $loop = HERE;
    is SCOPE,     $loop,  'block sub for : scope';
    is SCOPE(0),  $loop,  'block sub for : scope 0';
    is SCOPE(1),  $sub,   'block sub for : scope 1';
    is SCOPE(2),  $block, 'block sub for : scope 2';
+   is SCOPE(3),  $top,   'block sub for : scope 3';
    is CALLER,    $sub,   'block sub for : caller';
    is CALLER(0), $sub,   'block sub for : caller 0';
+   $old_sig_warn = $SIG{__WARN__};
+   local ($SIG{__WARN__}, $got_warn) = $warn_catcher;
    is CALLER(1), $top,   'block sub for : caller 1';
-   is CALLER(2), $top,   'block sub for : caller 2';
+   local $SIG{__WARN__} = $old_sig_warn;
+   is $got_warn, 1,      'block sub for : caller 1 warns';
    eval {
     my $eval = HERE;
     is SCOPE,     $eval,  'block sub for eval : scope';
@@ -358,11 +390,15 @@ SKIP: {
     is SCOPE(1),  $loop,  'block sub for eval : scope 1';
     is SCOPE(2),  $sub,   'block sub for eval : scope 2';
     is SCOPE(3),  $block, 'block sub for eval : scope 3';
+    is SCOPE(4),  $top,   'block sub for eval : scope 4';
     is CALLER,    $eval,  'block sub for eval : caller';
     is CALLER(0), $eval,  'block sub for eval : caller 0';
     is CALLER(1), $sub,   'block sub for eval : caller 1';
+    $old_sig_warn = $SIG{__WARN__};
+    local ($SIG{__WARN__}, $got_warn) = $warn_catcher;
     is CALLER(2), $top,   'block sub for eval : caller 2';
-    is CALLER(3), $top,   'block sub for eval : caller 3';
+    local $SIG{__WARN__} = $old_sig_warn;
+    is $got_warn, 1,      'block sub for eval : caller 2 warns';
    }
   }
  }->();

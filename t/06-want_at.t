@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 19;
+use Test::More tests => 18;
 
 use Scope::Upper qw<want_at UP HERE>;
 
@@ -26,7 +26,6 @@ my $w;
 
 check want_at,       undef, 'main : want_at';
 check want_at(HERE), undef, 'main : want_at HERE';
-check want_at(UP),   undef, 'main : want_at UP';
 check want_at(-1),   undef, 'main : want_at -1';
 
 my @a = sub {
