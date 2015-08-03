@@ -38,12 +38,17 @@ sub up1 {
  );
 
  is_deeply \@res, [ -1, $tid .. $tid + 2, -2 ], "$p: yielded correctly";
+
+ return 1;
 }
 
 my @threads = map spawn(\&up1), 1 .. 30;
 
-$_->join for @threads;
+my $completed = 0;
+for my $thr (@threads) {
+ ++$completed if $thr->join;
+}
 
 pass 'done';
 
-done_testing(scalar(@threads) + 1);
+done_testing($completed + 1);
