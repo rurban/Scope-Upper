@@ -258,7 +258,8 @@ static U8 su_op_gimme_reverse(U8 gimme) {
 
 /* --- Error messages ------------------------------------------------------ */
 
-static const char su_stack_smash[] = "Cannot target a scope outside of the current stack";
+static const char su_stack_smash[]    = "Cannot target a scope outside of the current stack";
+static const char su_no_such_target[] = "No targetable %s scope in the current stack";
 
 /* --- Unique context ID global storage ------------------------------------ */
 
@@ -2617,6 +2618,7 @@ PPCODE:
     XSRETURN(1);
   }
  }
+ warn(su_no_such_target, "subroutine");
  XSRETURN_UNDEF;
 
 void
@@ -2637,6 +2639,7 @@ PPCODE:
     XSRETURN(1);
   }
  }
+ warn(su_no_such_target, "eval");
  XSRETURN_UNDEF;
 
 void
