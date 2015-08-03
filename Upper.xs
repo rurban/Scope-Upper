@@ -1131,6 +1131,18 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
  SU_D(PerlIO_printf(Perl_debug_log, "%p: ### init for cx %d\n", ud, cxix));
 
+ /* su_pop() is going to be called from leave_scope(), so before pushing the
+  * next callback, we'll want to flush the current scope stack slice first.
+  * However, if we want the next callback not to be processed immediately by
+  * the current leave_scope(), we'll need to hide it by artificially
+  * incrementing the scope stack marker before. For the intermediate bumps,
+  * we will only need a bump of SU_SAVE_DESTRUCTOR_SIZE items, but for the
+  * last one we will need a bump of size items. However, in order to preserve
+  * the natural ordering between scope stack markers, we cannot bump lower
+  * markers more than higher ones. This is why we bump the intermediate markers
+  * by the smallest multiple of SU_SAVE_PLACEHOLDER_SIZE greater or equal to
+  * max(SU_SAVE_DESTRUCTOR_SIZE, size). */
+
  if (size <= SU_SAVE_DESTRUCTOR_SIZE)
   pad = 0;
  else {
@@ -1146,6 +1158,15 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
  depth = PL_scopestack_ix - cxstack[cxix].blk_oldscopesp;
  SU_D(PerlIO_printf(Perl_debug_log, "%p: going down to depth %d\n", ud, depth));
+
+ /* We need to bump all the intermediary stack markers just in case an
+  * exception is thrown before the target scope is reached. Indeed, in this
+  * case there might be arbitrary many scope frames flushed at the same time,
+  * and since we cannot know in advance whether this will happen or not, we
+  * have to make sure the final frame is protected for the actual action. But
+  * of course, in order to do that, we also need to bump all the previous stack
+  * markers. If not for this, it should have been possible to just bump the two
+  * next frames in su_pop(). */
 
  Newx(origin, depth + 1, I32);
  base = PL_scopestack_ix - depth;
