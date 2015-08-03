@@ -613,6 +613,7 @@ When omitted, it defaults to the current context.
     my $upper_context = UP $from;
 
 The context of the scope just above C<$from>.
+If C<$from> points to the top-level scope in the current stack, then a warning is emitted and C<$from> is returned (see L</DIAGNOSTICS> for details).
 
 =head3 C<SUB>
 
@@ -620,7 +621,8 @@ The context of the scope just above C<$from>.
     my $sub_context = SUB $from;
 
 The context of the closest subroutine above C<$from>.
-Note that C<$from> is returned if it is already a subroutine context ; hence C<SUB SUB == SUB>.
+If C<$from> already designates a subroutine context, then it is returned as-is ; hence C<SUB SUB == SUB>.
+If no subroutine context is present in the call stack, then a warning is emitted and the current context is returned (see L</DIAGNOSTICS> for details).
 
 =head3 C<EVAL>
 
@@ -628,7 +630,8 @@ Note that C<$from> is returned if it is already a subroutine context ; hence C<S
     my $eval_context = EVAL $from;
 
 The context of the closest eval above C<$from>.
-Note that C<$from> is returned if it is already an eval context ; hence C<EVAL EVAL == EVAL>.
+If C<$from> already designates an eval context, then it is returned as-is ; hence C<EVAL EVAL == EVAL>.
+If no eval context is present in the call stack, then a warning is emitted and the current context is returned (see L</DIAGNOSTICS> for details).
 
 =head2 Getting a context from a level
 
@@ -641,6 +644,7 @@ When omitted, it defaults to C<0> and those functions return the same context as
     my $context = SCOPE $level;
 
 The C<$level>-th upper context, regardless of its type.
+If C<$level> points above the top-level scope in the current stack, then a warning is emitted and the top-level context is returned (see L</DIAGNOSTICS> for details).
 
 =head3 C<CALLER>
 
@@ -649,6 +653,7 @@ The C<$level>-th upper context, regardless of its type.
 
 The context of the C<$level>-th upper subroutine/eval/format.
 It kind of corresponds to the context represented by C<caller $level>, but while e.g. C<caller 0> refers to the caller context, C<CALLER 0> will refer to the top scope in the current context.
+If C<$level> points above the top-level scope in the current stack, then a warning is emitted and the top-level context is returned (see L</DIAGNOSTICS> for details).
 
 =head2 Examples
 
@@ -712,6 +717,19 @@ Where L</unwind>, L</yield>, L</want_at>, L</context_info> and L</uplevel> point
     # (*) Note that uplevel() will croak if you pass that scope frame,
     #     because it cannot target eval scopes.
 
+=head1 DIAGNOSTICS
+
+=head2 C<Cannot target a scope outside of the current stack>
+
+This warning is emitted when L</UP>, L</SCOPE> or L</CALLER> end up pointing to a context that is above the top-level context of the current stack.
+It indicates that you tried to go higher than the main scope, or to point across a C<DESTROY> method, a signal handler, an overloaded or tied method call, a C<require> statement or a C<sort> callback.
+In this case, the resulting context is the highest reachable one.
+
+=head2 C<No targetable %s scope in the current stack>
+
+This warning is emitted when you ask for an L</EVAL> or L</SUB> context and no such scope can be found in the call stack.
+The resulting context is the current one.
+
 =head1 EXPORT
 
 The functions L</reap>, L</localize>, L</localize_elem>, L</localize_delete>,  L</unwind>, L</yield>, L</leave>, L</want_at>, L</context_info> and L</uplevel> are only exported on request, either individually or by the tags C<':funcs'> and C<':all'>.
@@ -741,6 +759,8 @@ our @EXPORT_OK   = map { @$_ } values %EXPORT_TAGS;
 $EXPORT_TAGS{'all'} = [ @EXPORT_OK ];
 
 =head1 CAVEATS
+
+It is not possible to act upon a scope that belongs to another perl 'stack', i.e. to target a scope across a C<DESTROY> method, a signal handler, an overloaded or tied method call, a C<require> statement or a C<sort> callback.
 
 Be careful that local variables are restored in the reverse order in which they were localized.
 Consider those examples:
