@@ -37,14 +37,16 @@ sub cb {
 
 my %uids;
 my $threads = 0;
-for my $thread (map threads->create(\&cb), 1 .. 30) {
- ++$threads;
+for my $thread (map spawn(\&cb), 1 .. 30) {
  my $tid = $thread->tid;
  my $uid = $thread->join;
- ++$uids{$uid};
- ok !validate_uid($uid), "\$here is no longer valid (out of thread $tid)";
+ if (defined $uid) {
+  ++$threads;
+  ++$uids{$uid};
+  ok !validate_uid($uid), "\$here is no longer valid (out of thread $tid)";
+ }
 }
 
 is scalar(keys %uids), $threads, 'all the UIDs were different';
 
-done_testing($threads * 5 + 1);
+done_testing;
