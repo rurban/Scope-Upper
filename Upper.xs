@@ -1143,9 +1143,9 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
   * by the smallest multiple of SU_SAVE_PLACEHOLDER_SIZE greater or equal to
   * max(SU_SAVE_DESTRUCTOR_SIZE, size). */
 
- if (size <= SU_SAVE_DESTRUCTOR_SIZE)
+ if (size <= SU_SAVE_DESTRUCTOR_SIZE) {
   pad = 0;
- else {
+ } else {
   I32 extra = size - SU_SAVE_DESTRUCTOR_SIZE;
   pad = extra / SU_SAVE_PLACEHOLDER_SIZE;
   if (extra % SU_SAVE_PLACEHOLDER_SIZE)
