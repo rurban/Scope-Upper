@@ -1174,6 +1174,7 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  PL_scopestack[base] += size;
  for (i = 1; i < depth; ++i) {
   I32 j = i + base;
+  /* origin[depth - i] == PL_scopestack[PL_scopestack_ix - i] */
   origin[i] = PL_scopestack[j];
   PL_scopestack[j] += offset;
  }
