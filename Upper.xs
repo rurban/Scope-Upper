@@ -576,9 +576,10 @@ static I32 su_av_key2idx(pTHX_ AV *av, I32 key) {
  if (SvRMAGICAL(av)) {
   const MAGIC * const tied_magic = mg_find((SV *) av, PERL_MAGIC_tied);
   if (tied_magic) {
-   SV * const * const negative_indices_glob =
-                    hv_fetch(SvSTASH(SvRV(SvTIED_obj((SV *) (av), tied_magic))),
-                             NEGATIVE_INDICES_VAR, 16, 0);
+   SV * const * const negative_indices_glob = hv_fetch(
+    SvSTASH(SvRV(SvTIED_obj((SV *) (av), tied_magic))),
+    NEGATIVE_INDICES_VAR, sizeof(NEGATIVE_INDICES_VAR)-1, 0
+   );
    if (negative_indices_glob && SvTRUE(GvSV(*negative_indices_glob)))
     return key;
   }
