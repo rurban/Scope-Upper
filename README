@@ -2,7 +2,7 @@ NAME
     Scope::Upper - Act on upper scopes.
 
 VERSION
-    Version 0.27
+    Version 0.28
 
 SYNOPSIS
     "reap", "localize", "localize_elem", "localize_delete" and "WORDS" :
@@ -570,21 +570,29 @@ WORDS
         my $upper_context = UP;
         my $upper_context = UP $from;
 
-    The context of the scope just above $from.
+    The context of the scope just above $from. If $from points to the
+    top-level scope in the current stack, then a warning is emitted and
+    $from is returned (see "DIAGNOSTICS" for details).
 
    "SUB"
         my $sub_context = SUB;
         my $sub_context = SUB $from;
 
-    The context of the closest subroutine above $from. Note that $from is
-    returned if it is already a subroutine context ; hence "SUB SUB == SUB".
+    The context of the closest subroutine above $from. If $from already
+    designates a subroutine context, then it is returned as-is ; hence "SUB
+    SUB == SUB". If no subroutine context is present in the call stack, then
+    a warning is emitted and the current context is returned (see
+    "DIAGNOSTICS" for details).
 
    "EVAL"
         my $eval_context = EVAL;
         my $eval_context = EVAL $from;
 
-    The context of the closest eval above $from. Note that $from is returned
-    if it is already an eval context ; hence "EVAL EVAL == EVAL".
+    The context of the closest eval above $from. If $from already designates
+    an eval context, then it is returned as-is ; hence "EVAL EVAL == EVAL".
+    If no eval context is present in the call stack, then a warning is
+    emitted and the current context is returned (see "DIAGNOSTICS" for
+    details).
 
   Getting a context from a level
     Here, $level should denote a number of scopes above the current one.
@@ -595,7 +603,10 @@ WORDS
         my $context = SCOPE;
         my $context = SCOPE $level;
 
-    The $level-th upper context, regardless of its type.
+    The $level-th upper context, regardless of its type. If $level points
+    above the top-level scope in the current stack, then a warning is
+    emitted and the top-level context is returned (see "DIAGNOSTICS" for
+    details).
 
    "CALLER"
         my $context = CALLER;
@@ -604,7 +615,9 @@ WORDS
     The context of the $level-th upper subroutine/eval/format. It kind of
     corresponds to the context represented by "caller $level", but while
     e.g. "caller 0" refers to the caller context, "CALLER 0" will refer to
-    the top scope in the current context.
+    the top scope in the current context. If $level points above the
+    top-level scope in the current stack, then a warning is emitted and the
+    top-level context is returned (see "DIAGNOSTICS" for details).
 
   Examples
     Where "reap" fires depending on the $cxt :
@@ -669,6 +682,20 @@ WORDS
         # (*) Note that uplevel() will croak if you pass that scope frame,
         #     because it cannot target eval scopes.
 
+DIAGNOSTICS
+  "Cannot target a scope outside of the current stack"
+    This warning is emitted when "UP", "SCOPE" or "CALLER" end up pointing
+    to a context that is above the top-level context of the current stack.
+    It indicates that you tried to go higher than the main scope, or to
+    point across a "DESTROY" method, a signal handler, an overloaded or tied
+    method call, a "require" statement or a "sort" callback. In this case,
+    the resulting context is the highest reachable one.
+
+  "No targetable %s scope in the current stack"
+    This warning is emitted when you ask for an "EVAL" or "SUB" context and
+    no such scope can be found in the call stack. The resulting context is
+    the current one.
+
 EXPORT
     The functions "reap", "localize", "localize_elem", "localize_delete",
     "unwind", "yield", "leave", "want_at", "context_info" and "uplevel" are
@@ -683,6 +710,11 @@ EXPORT
     ':words' and ':all'.
 
 CAVEATS
+    It is not possible to act upon a scope that belongs to another perl
+    'stack', i.e. to target a scope across a "DESTROY" method, a signal
+    handler, an overloaded or tied method call, a "require" statement or a
+    "sort" callback.
+
     Be careful that local variables are restored in the reverse order in
     which they were localized. Consider those examples:
 
@@ -780,9 +812,6 @@ SUPPORT
     You can find documentation for this module with the perldoc command.
 
         perldoc Scope::Upper
-
-    Tests code coverage report is available at
-    <http://www.profvince.com/perl/cover/Scope-Upper>.
 
 ACKNOWLEDGEMENTS
     Inspired by Ricardo Signes.
