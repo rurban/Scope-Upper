@@ -54,9 +54,12 @@
 # define SU_D(X) STMT_START X STMT_END
 static void su_debug_log(const char *fmt, ...) {
  va_list va;
+ SV *sv;
  dTHX;
  va_start(va, fmt);
- PerlIO_vprintf(Perl_debug_log, fmt, va);
+ sv = get_sv(__PACKAGE__ "::DEBUG", 0);
+ if (sv && SvTRUE(sv))
+  PerlIO_vprintf(Perl_debug_log, fmt, va);
  va_end(va);
  return;
 }
