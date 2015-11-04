@@ -6,21 +6,15 @@
 #include "perl.h"
 #include "XSUB.h"
 
-#define __PACKAGE__ "Scope::Upper"
+/* --- XS helpers ---------------------------------------------------------- */
 
-#ifndef SU_DEBUG
-# define SU_DEBUG 0
-#endif
+#define XSH_PACKAGE "Scope::Upper"
+
+#include "xsh/caps.h"
+#include "xsh/util.h"
+#include "xsh/debug.h"
 
 /* --- Compatibility ------------------------------------------------------- */
-
-#ifndef NOOP
-# define NOOP
-#endif
-
-#ifndef dNOOP
-# define dNOOP
-#endif
 
 #ifndef dVAR
 # define dVAR dNOOP
@@ -40,31 +34,6 @@
 
 #ifndef PERL_UNUSED_VAR
 # define PERL_UNUSED_VAR(V)
-#endif
-
-#ifndef STMT_START
-# define STMT_START do
-#endif
-
-#ifndef STMT_END
-# define STMT_END while (0)
-#endif
-
-#if SU_DEBUG
-# define SU_D(X) STMT_START X STMT_END
-static void su_debug_log(const char *fmt, ...) {
- va_list va;
- SV *sv;
- dTHX;
- va_start(va, fmt);
- sv = get_sv(__PACKAGE__ "::DEBUG", 0);
- if (sv && SvTRUE(sv))
-  PerlIO_vprintf(Perl_debug_log, fmt, va);
- va_end(va);
- return;
-}
-#else
-# define SU_D(X)
 #endif
 
 #ifndef Newx
@@ -228,45 +197,6 @@ static U8 su_op_gimme_reverse(U8 gimme) {
 # define NEGATIVE_INDICES_VAR "NEGATIVE_INDICES"
 #endif
 
-#define SU_HAS_PERL(R, V, S) (PERL_REVISION > (R) || (PERL_REVISION == (R) && (PERL_VERSION > (V) || (PERL_VERSION == (V) && (PERL_SUBVERSION >= (S))))))
-#define SU_HAS_PERL_EXACT(R, V, S) ((PERL_REVISION == (R)) && (PERL_VERSION == (V)) && (PERL_SUBVERSION == (S)))
-
-/* --- Threads and multiplicity -------------------------------------------- */
-
-#ifndef SU_MULTIPLICITY
-# if defined(MULTIPLICITY) || defined(PERL_IMPLICIT_CONTEXT)
-#  define SU_MULTIPLICITY 1
-# else
-#  define SU_MULTIPLICITY 0
-# endif
-#endif
-#if SU_MULTIPLICITY && !defined(tTHX)
-# define tTHX PerlInterpreter*
-#endif
-
-#if SU_MULTIPLICITY && defined(USE_ITHREADS) && defined(dMY_CXT) && defined(MY_CXT) && defined(START_MY_CXT) && defined(MY_CXT_INIT) && (defined(MY_CXT_CLONE) || defined(dMY_CXT_SV))
-# define SU_THREADSAFE 1
-# ifndef MY_CXT_CLONE
-#  define MY_CXT_CLONE \
-    dMY_CXT_SV;                                                      \
-    my_cxt_t *my_cxtp = (my_cxt_t*)SvPVX(newSV(sizeof(my_cxt_t)-1)); \
-    Copy(INT2PTR(my_cxt_t*, SvUV(my_cxt_sv)), my_cxtp, 1, my_cxt_t); \
-    sv_setuv(my_cxt_sv, PTR2UV(my_cxtp))
-# endif
-#else
-# define SU_THREADSAFE 0
-# undef  dMY_CXT
-# define dMY_CXT      dNOOP
-# undef  MY_CXT
-# define MY_CXT       su_globaldata
-# undef  START_MY_CXT
-# define START_MY_CXT static my_cxt_t MY_CXT;
-# undef  MY_CXT_INIT
-# define MY_CXT_INIT  NOOP
-# undef  MY_CXT_CLONE
-# define MY_CXT_CLONE NOOP
-#endif
-
 /* --- Error messages ------------------------------------------------------ */
 
 static const char su_stack_smash[]    = "Cannot target a scope outside of the current stack";
@@ -287,22 +217,14 @@ static su_uv_array su_uid_seq_counter;
 
 static perl_mutex su_uid_seq_counter_mutex;
 
-#define SU_LOCK(M)   MUTEX_LOCK(M)
-#define SU_UNLOCK(M) MUTEX_UNLOCK(M)
-
-#else /* USE_ITHREADS */
-
-#define SU_LOCK(M)
-#define SU_UNLOCK(M)
-
-#endif /* !USE_ITHREADS */
+#endif /* USE_ITHREADS */
 
 static UV su_uid_seq_next(pTHX_ UV depth) {
 #define su_uid_seq_next(D) su_uid_seq_next(aTHX_ (D))
  UV seq;
  UV *seqs;
 
- SU_LOCK(&su_uid_seq_counter_mutex);
+ XSH_LOCK(&su_uid_seq_counter_mutex);
 
  seqs = su_uid_seq_counter.seqs;
 
@@ -319,7 +241,7 @@ static UV su_uid_seq_next(pTHX_ UV depth) {
 
  seq = ++seqs[depth];
 
- SU_UNLOCK(&su_uid_seq_counter_mutex);
+ XSH_UNLOCK(&su_uid_seq_counter_mutex);
 
  return seq;
 }
@@ -415,7 +337,7 @@ typedef struct {
 
 /* --- uplevel() data tokens and global storage ---------------------------- */
 
-#define SU_UPLEVEL_HIJACKS_RUNOPS SU_HAS_PERL(5, 8, 0)
+#define SU_UPLEVEL_HIJACKS_RUNOPS XSH_HAS_PERL(5, 8, 0)
 
 typedef struct {
  void          *next;
@@ -496,21 +418,42 @@ typedef struct {
 
 /* --- Global data --------------------------------------------------------- */
 
-#define MY_CXT_KEY __PACKAGE__ "::_guts" XS_VERSION
-
 typedef struct {
  char               *stack_placeholder;
  su_unwind_storage   unwind_storage;
  su_yield_storage    yield_storage;
  su_uplevel_storage  uplevel_storage;
  su_uid_storage      uid_storage;
-} my_cxt_t;
+} xsh_user_cxt_t;
 
-START_MY_CXT
+#define XSH_THREADS_USER_CONTEXT            1
+#define XSH_THREADS_USER_CLONE_NEEDS_DUP    0
+#define XSH_THREADS_COMPILE_TIME_PROTECTION 0
+
+#if XSH_THREADSAFE
+
+static void xsh_user_clone(pTHX_ const xsh_user_cxt_t *old_cxt, xsh_user_cxt_t *new_cxt) {
+ new_cxt->uplevel_storage.top   = NULL;
+ new_cxt->uplevel_storage.root  = NULL;
+ new_cxt->uplevel_storage.count = 0;
+
+ new_cxt->uid_storage.map   = NULL;
+ new_cxt->uid_storage.used  = 0;
+ new_cxt->uid_storage.alloc = 0;
+
+ su_uid_storage_dup(&new_cxt->uid_storage, &old_cxt->uid_storage,
+                    old_cxt->uid_storage.used);
+
+ return;
+}
+
+#endif /* XSH_THREADSAFE */
+
+#include "xsh/threads.h"
 
 /* --- Stack manipulations ------------------------------------------------- */
 
-#define SU_SAVE_PLACEHOLDER() save_pptr(&MY_CXT.stack_placeholder)
+#define SU_SAVE_PLACEHOLDER() save_pptr(&XSH_CXT.stack_placeholder)
 
 #define SU_SAVE_DESTRUCTOR_SIZE  3
 #define SU_SAVE_PLACEHOLDER_SIZE 3
@@ -541,11 +484,11 @@ START_MY_CXT
 
 #define SU_SAVE_GVCV_SIZE SU_SAVE_DESTRUCTOR_SIZE
 
-#if !SU_HAS_PERL(5, 8, 9)
+#if !XSH_HAS_PERL(5, 8, 9)
 # define SU_SAVE_GP_SIZE 6
-#elif !SU_HAS_PERL(5, 13, 0) || (SU_RELEASE && SU_HAS_PERL_EXACT(5, 13, 0))
+#elif !XSH_HAS_PERL(5, 13, 0) || (SU_RELEASE && XSH_HAS_PERL_EXACT(5, 13, 0))
 # define SU_SAVE_GP_SIZE 3
-#elif !SU_HAS_PERL(5, 13, 8)
+#elif !XSH_HAS_PERL(5, 13, 8)
 # define SU_SAVE_GP_SIZE 4
 #else
 # define SU_SAVE_GP_SIZE 3
@@ -572,7 +515,7 @@ static I32 su_av_key2idx(pTHX_ AV *av, I32 key) {
   return key;
 
 /* Added by MJD in perl-5.8.1 with 6f12eb6d2a1dfaf441504d869b27d2e40ef4966a */
-#if SU_HAS_PERL(5, 8, 1)
+#if XSH_HAS_PERL(5, 8, 1)
  if (SvRMAGICAL(av)) {
   const MAGIC * const tied_magic = mg_find((SV *) av, PERL_MAGIC_tied);
   if (tied_magic) {
@@ -693,7 +636,7 @@ static void su_save_helem(pTHX_ HV *hv, SV *keysv, SV *val) {
 
 /* ... Saving code slots from a glob ....................................... */
 
-#if !SU_HAS_PERL(5, 10, 0) && !defined(mro_method_changed_in)
+#if !XSH_HAS_PERL(5, 10, 0) && !defined(mro_method_changed_in)
 # define mro_method_changed_in(G) PL_sub_generation++
 #endif
 
@@ -756,7 +699,7 @@ typedef struct {
 
 /* ... Reap ................................................................ */
 
-#define SU_SAVE_LAST_CX (!SU_HAS_PERL(5, 8, 4) || (SU_HAS_PERL(5, 9, 5) && !SU_HAS_PERL(5, 14, 0)) || SU_HAS_PERL(5, 15, 0))
+#define SU_SAVE_LAST_CX (!XSH_HAS_PERL(5, 8, 4) || (XSH_HAS_PERL(5, 9, 5) && !XSH_HAS_PERL(5, 14, 0)) || XSH_HAS_PERL(5, 15, 0))
 
 typedef struct {
  su_ud_common ci;
@@ -773,8 +716,8 @@ static void su_call(pTHX_ SV *cb) {
 
  dSP;
 
- SU_D(su_debug_log("@@@ call scope_ix=%2d save_ix=%2d\n",
-                         PL_scopestack_ix, PL_savestack_ix));
+ XSH_D(su_debug_log("@@@ call scope_ix=%2d save_ix=%2d\n",
+                          PL_scopestack_ix, PL_savestack_ix));
 
  ENTER;
  SAVETMPS;
@@ -928,7 +871,7 @@ static void su_localize(pTHX_ void *ud_) {
 #endif
  }
 
- SU_D({
+ XSH_D({
   SV *z = newSV(0);
   SvUPGRADE(z, t);
   su_debug_log("%p: === localize a %s\n",ud, sv_reftype(z, 0));
@@ -972,7 +915,7 @@ static void su_localize(pTHX_ void *ud_) {
 
 /* ... Unique context ID ................................................... */
 
-/* We must pass the index because MY_CXT.uid_storage might be reallocated
+/* We must pass the index because XSH_CXT.uid_storage might be reallocated
  * between the UID fetch and the invalidation at the end of scope. */
 
 typedef struct {
@@ -982,9 +925,9 @@ typedef struct {
 
 static void su_uid_drop(pTHX_ void *ud_) {
  su_ud_uid *ud = ud_;
- dMY_CXT;
+ dXSH_CXT;
 
- MY_CXT.uid_storage.map[ud->idx].flags &= ~SU_UID_ACTIVE;
+ XSH_CXT.uid_storage.map[ud->idx].flags &= ~SU_UID_ACTIVE;
 
  SU_UD_FREE(ud);
 
@@ -996,7 +939,7 @@ static void su_uid_drop(pTHX_ void *ud_) {
 #ifdef DEBUGGING
 # define SU_CXNAME(C) PL_block_type[CxTYPE(C)]
 #else
-# if SU_HAS_PERL(5, 11, 0)
+# if XSH_HAS_PERL(5, 11, 0)
 static const char *su_block_type[] = {
  "NULL",
  "WHEN",
@@ -1011,7 +954,7 @@ static const char *su_block_type[] = {
  "EVAL",
  "SUBST"
 };
-# elif SU_HAS_PERL(5, 9, 3)
+# elif XSH_HAS_PERL(5, 9, 3)
 static const char *su_block_type[] = {
  "NULL",
  "SUB",
@@ -1044,7 +987,7 @@ static void su_pop(pTHX_ void *ud) {
  I32 depth, base, mark, *origin;
  depth = SU_UD_DEPTH(ud);
 
- SU_D(su_debug_log(
+ XSH_D(su_debug_log(
   "%p: --- pop a %s\n"
   "%p: leave scope     at depth=%2d scope_ix=%2d cur_top=%2d cur_base=%2d\n",
    ud, SU_CXNAME(cxstack + cxstack_ix),
@@ -1055,18 +998,18 @@ static void su_pop(pTHX_ void *ud) {
  mark   = origin[depth];
  base   = origin[depth - 1];
 
- SU_D(su_debug_log("%p: original scope was %*c top=%2d     base=%2d\n",
-                    ud,                24, ' ',    mark,        base));
+ XSH_D(su_debug_log("%p: original scope was %*c top=%2d     base=%2d\n",
+                     ud,                24, ' ',    mark,        base));
 
  if (base < mark) {
-#if SU_HAS_PERL(5, 19, 4)
+#if XSH_HAS_PERL(5, 19, 4)
   I32 save = -1;
   PERL_CONTEXT *cx;
 #endif
 
-  SU_D(su_debug_log("%p: clear leftovers\n", ud));
+  XSH_D(su_debug_log("%p: clear leftovers\n", ud));
 
-#if SU_HAS_PERL(5, 19, 4)
+#if XSH_HAS_PERL(5, 19, 4)
   cx = cxstack + cxstack_ix;
   if (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT)
    save = PL_scopestack[cx->blk_oldscopesp - 1];
@@ -1075,7 +1018,7 @@ static void su_pop(pTHX_ void *ud) {
   PL_savestack_ix = mark;
   leave_scope(base);
 
-#if SU_HAS_PERL(5, 19, 4)
+#if XSH_HAS_PERL(5, 19, 4)
   if (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT)
    PL_scopestack[cx->blk_oldscopesp - 1] = save;
 #endif
@@ -1088,23 +1031,23 @@ static void su_pop(pTHX_ void *ud) {
   U8 pad;
 
   if ((pad = SU_UD_PAD(ud)) > 0) {
-   dMY_CXT;
+   dXSH_CXT;
    do {
-    SU_D(su_debug_log(
+    XSH_D(su_debug_log(
           "%p: push a pad slot at depth=%2d scope_ix=%2d save_ix=%2d\n",
            ud,                       depth, PL_scopestack_ix, PL_savestack_ix));
     SU_SAVE_PLACEHOLDER();
    } while (--pad);
   }
 
-  SU_D(su_debug_log(
-         "%p: push destructor at depth=%2d scope_ix=%2d save_ix=%2d\n",
-          ud,                        depth, PL_scopestack_ix, PL_savestack_ix));
+  XSH_D(su_debug_log(
+        "%p: push destructor at depth=%2d scope_ix=%2d save_ix=%2d\n",
+         ud,                        depth, PL_scopestack_ix, PL_savestack_ix));
   SAVEDESTRUCTOR_X(su_pop, ud);
  } else {
   switch (SU_UD_TYPE(ud)) {
    case SU_UD_TYPE_REAP: {
-    SU_D(su_debug_log("%p: === reap\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
+    XSH_D(su_debug_log("%p: === reap\n%p: depth=%2d scope_ix=%2d save_ix=%2d\n",
                    ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix));
     SAVEDESTRUCTOR_X(su_call, SU_UD_REAP_CB(ud));
     SU_UD_FREE(ud);
@@ -1120,8 +1063,8 @@ static void su_pop(pTHX_ void *ud) {
   }
  }
 
- SU_D(su_debug_log("%p: --- end pop: cur_top=%2d == cur_base=%2d\n",
-                    ud, PL_savestack_ix, PL_scopestack[PL_scopestack_ix]));
+ XSH_D(su_debug_log("%p: --- end pop: cur_top=%2d == cur_base=%2d\n",
+                     ud, PL_savestack_ix, PL_scopestack[PL_scopestack_ix]));
 }
 
 /* --- Initialize the stack and the action userdata ------------------------ */
@@ -1131,7 +1074,7 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  I32 i, depth, offset, base, *origin;
  U8 pad;
 
- SU_D(su_debug_log("%p: ### init for cx %d\n", ud, cxix));
+ XSH_D(su_debug_log("%p: ### init for cx %d\n", ud, cxix));
 
  /* su_pop() is going to be called from leave_scope(), so before pushing the
   * next callback, we'll want to flush the current scope stack slice first.
@@ -1154,10 +1097,10 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
    ++pad;
  }
  offset = SU_SAVE_DESTRUCTOR_SIZE + SU_SAVE_PLACEHOLDER_SIZE * pad;
- SU_D(su_debug_log("%p: size=%d pad=%d offset=%d\n", ud, size, pad, offset));
+ XSH_D(su_debug_log("%p: size=%d pad=%d offset=%d\n", ud, size, pad, offset));
 
  depth = PL_scopestack_ix - cxstack[cxix].blk_oldscopesp;
- SU_D(su_debug_log("%p: going down to depth %d\n", ud, depth));
+ XSH_D(su_debug_log("%p: going down to depth %d\n", ud, depth));
 
  /* We need to bump all the intermediary stack markers just in case an
   * exception is thrown before the target scope is reached. Indeed, in this
@@ -1188,19 +1131,19 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
   * stack. */
  if (PL_savestack_ix + SU_SAVE_DESTRUCTOR_SIZE
                                        <= PL_scopestack[PL_scopestack_ix - 1]) {
-  dMY_CXT;
+  dXSH_CXT;
   do {
-   SU_D(su_debug_log("%p: push a fake slot      at scope_ix=%2d  save_ix=%2d\n",
-                      ud,                   PL_scopestack_ix, PL_savestack_ix));
+   XSH_D(su_debug_log("%p: push a fake slot      at scope_ix=%2d save_ix=%2d\n",
+                       ud,                  PL_scopestack_ix, PL_savestack_ix));
    SU_SAVE_PLACEHOLDER();
   } while (PL_savestack_ix + SU_SAVE_DESTRUCTOR_SIZE
                                         <= PL_scopestack[PL_scopestack_ix - 1]);
  }
- SU_D(su_debug_log("%p: push first destructor at scope_ix=%2d  save_ix=%2d\n",
-                    ud,                     PL_scopestack_ix, PL_savestack_ix));
+ XSH_D(su_debug_log("%p: push first destructor at scope_ix=%2d save_ix=%2d\n",
+                     ud,                    PL_scopestack_ix, PL_savestack_ix));
  SAVEDESTRUCTOR_X(su_pop, ud);
 
- SU_D({
+ XSH_D({
   for (i = 0; i <= depth; ++i) {
    I32 j = PL_scopestack_ix  - i;
    su_debug_log("%p: depth=%2d scope_ix=%2d saved_floor=%2d new_floor=%2d\n",
@@ -1215,15 +1158,15 @@ static I32 su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 /* --- Unwind stack -------------------------------------------------------- */
 
 static void su_unwind(pTHX_ void *ud_) {
- dMY_CXT;
- I32 cxix  = MY_CXT.unwind_storage.cxix;
- I32 items = MY_CXT.unwind_storage.items;
+ dXSH_CXT;
+ I32 cxix  = XSH_CXT.unwind_storage.cxix;
+ I32 items = XSH_CXT.unwind_storage.items;
  I32 mark;
 
  PERL_UNUSED_VAR(ud_);
 
- PL_stack_sp = MY_CXT.unwind_storage.savesp;
-#if SU_HAS_PERL(5, 19, 4)
+ PL_stack_sp = XSH_CXT.unwind_storage.savesp;
+#if XSH_HAS_PERL(5, 19, 4)
  {
   I32 i;
   SV **sp = PL_stack_sp;
@@ -1239,26 +1182,26 @@ static void su_unwind(pTHX_ void *ud_) {
  mark = PL_markstack[cxstack[cxix].blk_oldmarksp];
  *PL_markstack_ptr = PL_stack_sp - PL_stack_base - items;
 
- SU_D({
+ XSH_D({
   I32 gimme = GIMME_V;
   su_debug_log("%p: cx=%d gimme=%s items=%d sp=%d oldmark=%d mark=%d\n",
-                &MY_CXT, cxix,
+                &XSH_CXT, cxix,
                 gimme == G_VOID ? "void" : gimme == G_ARRAY ? "list" : "scalar",
                 items, PL_stack_sp - PL_stack_base, *PL_markstack_ptr, mark);
  });
 
- PL_op = (OP *) &(MY_CXT.unwind_storage.return_op);
+ PL_op = (OP *) &(XSH_CXT.unwind_storage.return_op);
  PL_op = PL_op->op_ppaddr(aTHX);
 
  *PL_markstack_ptr = mark;
 
- MY_CXT.unwind_storage.proxy_op.op_next = PL_op;
- PL_op = &(MY_CXT.unwind_storage.proxy_op);
+ XSH_CXT.unwind_storage.proxy_op.op_next = PL_op;
+ PL_op = &(XSH_CXT.unwind_storage.proxy_op);
 }
 
 /* --- Yield --------------------------------------------------------------- */
 
-#if SU_HAS_PERL(5, 10, 0)
+#if XSH_HAS_PERL(5, 10, 0)
 # define SU_RETOP_SUB(C)   ((C)->blk_sub.retop)
 # define SU_RETOP_EVAL(C)  ((C)->blk_eval.retop)
 # define SU_RETOP_LOOP(C)  ((C)->blk_loop.my_op->op_lastop->op_next)
@@ -1270,11 +1213,11 @@ static void su_unwind(pTHX_ void *ud_) {
 #endif
 
 static void su_yield(pTHX_ void *ud_) {
- dMY_CXT;
+ dXSH_CXT;
  PERL_CONTEXT *cx;
  const char   *which = ud_;
- I32 cxix      = MY_CXT.yield_storage.cxix;
- I32 items     = MY_CXT.yield_storage.items;
+ I32 cxix      = XSH_CXT.yield_storage.cxix;
+ I32 items     = XSH_CXT.yield_storage.items;
  opcode  type  = OP_NULL;
  U8      flags = 0;
  OP     *next;
@@ -1288,7 +1231,7 @@ static void su_yield(pTHX_ void *ud_) {
    OP *o = NULL;
    /* Is this actually a given/when block? This may occur only when yield was
     * called with HERE (or nothing) as the context. */
-#if SU_HAS_PERL(5, 10, 0)
+#if XSH_HAS_PERL(5, 10, 0)
    if (cxix > 0) {
     PERL_CONTEXT *prev = cx - 1;
     U8       prev_type = CxTYPE(prev);
@@ -1327,7 +1270,7 @@ static void su_yield(pTHX_ void *ud_) {
      case CXt_EVAL:
       o = SU_RETOP_EVAL(cx2);
       break;
-#if SU_HAS_PERL(5, 11, 0)
+#if XSH_HAS_PERL(5, 11, 0)
      case CXt_LOOP_FOR:
      case CXt_LOOP_PLAIN:
      case CXt_LOOP_LAZYSV:
@@ -1368,7 +1311,7 @@ static void su_yield(pTHX_ void *ud_) {
    type = CxTRYBLOCK(cx) ? OP_LEAVETRY : OP_LEAVEEVAL;
    next = SU_RETOP_EVAL(cx);
    break;
-#if SU_HAS_PERL(5, 11, 0)
+#if XSH_HAS_PERL(5, 11, 0)
   case CXt_LOOP_FOR:
   case CXt_LOOP_PLAIN:
   case CXt_LOOP_LAZYSV:
@@ -1379,7 +1322,7 @@ static void su_yield(pTHX_ void *ud_) {
    type = OP_LEAVELOOP;
    next = SU_RETOP_LOOP(cx);
    break;
-#if SU_HAS_PERL(5, 10, 0)
+#if XSH_HAS_PERL(5, 10, 0)
   case CXt_GIVEN:
 cxt_given:
    type = OP_LEAVEGIVEN;
@@ -1387,7 +1330,7 @@ cxt_given:
    break;
   case CXt_WHEN:
 cxt_when:
-#if SU_HAS_PERL(5, 15, 1)
+#if XSH_HAS_PERL(5, 15, 1)
    type   = OP_LEAVEWHEN;
 #else
    type   = OP_BREAK;
@@ -1405,8 +1348,8 @@ cxt_when:
    break;
  }
 
- PL_stack_sp = MY_CXT.yield_storage.savesp;
-#if SU_HAS_PERL(5, 19, 4)
+ PL_stack_sp = XSH_CXT.yield_storage.savesp;
+#if XSH_HAS_PERL(5, 19, 4)
  {
   I32 i;
   SV **sp = PL_stack_sp;
@@ -1427,16 +1370,16 @@ cxt_when:
 
  flags |= OP_GIMME_REVERSE(cx->blk_gimme);
 
- MY_CXT.yield_storage.leave_op.op_type   = type;
- MY_CXT.yield_storage.leave_op.op_ppaddr = PL_ppaddr[type];
- MY_CXT.yield_storage.leave_op.op_flags  = flags;
- MY_CXT.yield_storage.leave_op.op_next   = next;
+ XSH_CXT.yield_storage.leave_op.op_type   = type;
+ XSH_CXT.yield_storage.leave_op.op_ppaddr = PL_ppaddr[type];
+ XSH_CXT.yield_storage.leave_op.op_flags  = flags;
+ XSH_CXT.yield_storage.leave_op.op_next   = next;
 
- PL_op = (OP *) &(MY_CXT.yield_storage.leave_op);
+ PL_op = (OP *) &(XSH_CXT.yield_storage.leave_op);
  PL_op = PL_op->op_ppaddr(aTHX);
 
- MY_CXT.yield_storage.proxy_op.op_next = PL_op;
- PL_op = &(MY_CXT.yield_storage.proxy_op);
+ XSH_CXT.yield_storage.proxy_op.op_next = PL_op;
+ PL_op = &(XSH_CXT.yield_storage.proxy_op);
 }
 
 /* --- Uplevel ------------------------------------------------------------- */
@@ -1448,35 +1391,35 @@ static su_uplevel_ud *su_uplevel_storage_new(pTHX_ I32 cxix) {
 #define su_uplevel_storage_new(I) su_uplevel_storage_new(aTHX_ (I))
  su_uplevel_ud *sud;
  UV depth;
- dMY_CXT;
+ dXSH_CXT;
 
- sud = MY_CXT.uplevel_storage.root;
+ sud = XSH_CXT.uplevel_storage.root;
  if (sud) {
-  MY_CXT.uplevel_storage.root = sud->next;
-  MY_CXT.uplevel_storage.count--;
+  XSH_CXT.uplevel_storage.root = sud->next;
+  XSH_CXT.uplevel_storage.count--;
  } else {
   sud = su_uplevel_ud_new();
  }
 
- sud->next = MY_CXT.uplevel_storage.top;
- MY_CXT.uplevel_storage.top = sud;
+ sud->next = XSH_CXT.uplevel_storage.top;
+ XSH_CXT.uplevel_storage.top = sud;
 
  depth = su_uid_depth(cxix);
- su_uid_storage_dup(&sud->tmp_uid_storage, &MY_CXT.uid_storage, depth);
- sud->old_uid_storage = MY_CXT.uid_storage;
- MY_CXT.uid_storage   = sud->tmp_uid_storage;
+ su_uid_storage_dup(&sud->tmp_uid_storage, &XSH_CXT.uid_storage, depth);
+ sud->old_uid_storage = XSH_CXT.uid_storage;
+ XSH_CXT.uid_storage  = sud->tmp_uid_storage;
 
  return sud;
 }
 
-#if SU_HAS_PERL(5, 13, 7)
+#if XSH_HAS_PERL(5, 13, 7)
 
 static void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_storage_delete(S) su_uplevel_storage_delete(aTHX_ (S))
- dMY_CXT;
+ dXSH_CXT;
 
- sud->tmp_uid_storage = MY_CXT.uid_storage;
- MY_CXT.uid_storage   = sud->old_uid_storage;
+ sud->tmp_uid_storage = XSH_CXT.uid_storage;
+ XSH_CXT.uid_storage   = sud->old_uid_storage;
  {
   su_uid *map;
   STRLEN  i, alloc;
@@ -1485,14 +1428,14 @@ static void su_uplevel_storage_delete(pTHX_ su_uplevel_ud *sud) {
   for (i = 0; i < alloc; ++i)
    map[i].flags &= ~SU_UID_ACTIVE;
  }
- MY_CXT.uplevel_storage.top = sud->next;
+ XSH_CXT.uplevel_storage.top = sud->next;
 
- if (MY_CXT.uplevel_storage.count >= SU_UPLEVEL_STORAGE_SIZE) {
+ if (XSH_CXT.uplevel_storage.count >= SU_UPLEVEL_STORAGE_SIZE) {
   su_uplevel_ud_delete(sud);
  } else {
-  sud->next = MY_CXT.uplevel_storage.root;
-  MY_CXT.uplevel_storage.root = sud;
-  MY_CXT.uplevel_storage.count++;
+  sud->next = XSH_CXT.uplevel_storage.root;
+  XSH_CXT.uplevel_storage.root = sud;
+  XSH_CXT.uplevel_storage.count++;
  }
 }
 
@@ -1554,9 +1497,9 @@ static int su_uplevel_goto_runops(pTHX) {
 
 done:
    if (argarray) {
-    dMY_CXT;
+    dXSH_CXT;
 
-    if (MY_CXT.uplevel_storage.top->cxix == cxix) {
+    if (XSH_CXT.uplevel_storage.top->cxix == cxix) {
      AV  *args  = GvAV(PL_defgv);
      I32  items = AvFILLp(args);
 
@@ -1569,7 +1512,7 @@ done:
 
   PL_op = op = op->op_ppaddr(aTHX);
 
-#if !SU_HAS_PERL(5, 13, 0)
+#if !XSH_HAS_PERL(5, 13, 0)
   PERL_ASYNC_CHECK();
 #endif
  } while (op);
@@ -1689,7 +1632,7 @@ found_it:
    CvDEPTH(target) = sud->target_depth - levels;
    PL_curstackinfo->si_cxix = i - 1;
 
-#if !SU_HAS_PERL(5, 13, 1)
+#if !XSH_HAS_PERL(5, 13, 1)
    /* Since $@ was maybe localized between the target frame and the uplevel
     * call, we forcefully flush the save stack to get rid of it and then
     * reset $@ to its proper value. Note that the the call to
@@ -1723,22 +1666,22 @@ found_it:
   * pointer to the current context frame across this call. This means that we
   * can't free the temporary context stack we used for the uplevel call right
   * now, or that pointer upwards would point to garbage. */
-#if SU_HAS_PERL(5, 13, 7)
+#if XSH_HAS_PERL(5, 13, 7)
  /* This issue has been fixed in perl with commit 8f89e5a9, which was made
   * public in perl 5.13.7. */
  su_uplevel_storage_delete(sud);
 #else
  /* Otherwise, we just enqueue it back in the global storage list. */
  {
-  dMY_CXT;
+  dXSH_CXT;
 
-  sud->tmp_uid_storage = MY_CXT.uid_storage;
-  MY_CXT.uid_storage   = sud->old_uid_storage;
+  sud->tmp_uid_storage = XSH_CXT.uid_storage;
+  XSH_CXT.uid_storage  = sud->old_uid_storage;
 
-  MY_CXT.uplevel_storage.top  = sud->next;
-  sud->next = MY_CXT.uplevel_storage.root;
-  MY_CXT.uplevel_storage.root = sud;
-  MY_CXT.uplevel_storage.count++;
+  XSH_CXT.uplevel_storage.top  = sud->next;
+  sud->next = XSH_CXT.uplevel_storage.root;
+  XSH_CXT.uplevel_storage.root = sud;
+  XSH_CXT.uplevel_storage.count++;
  }
 #endif
 
@@ -1764,14 +1707,14 @@ static CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
 #endif
 
  CvGV_set(cv, gv);
-#if SU_RELEASE && SU_HAS_PERL_EXACT(5, 21, 4)
+#if SU_RELEASE && XSH_HAS_PERL_EXACT(5, 21, 4)
  CvNAMED_off(cv);
 #endif
  CvSTASH_set(cv, CvSTASH(proto));
  /* Commit 4c74a7df, publicized with perl 5.13.3, began to add backrefs to
   * stashes. CvSTASH_set() started to do it as well with commit c68d95645
   * (which was part of perl 5.13.7). */
-#if SU_HAS_PERL(5, 13, 3) && !SU_HAS_PERL(5, 13, 7)
+#if XSH_HAS_PERL(5, 13, 3) && !XSH_HAS_PERL(5, 13, 7)
  if (CvSTASH(proto))
   Perl_sv_add_backref(aTHX_ CvSTASH(proto), MUTABLE_SV(cv));
 #endif
@@ -1991,10 +1934,10 @@ static su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
 #define su_uid_storage_fetch(D) su_uid_storage_fetch(aTHX_ (D))
  su_uid *map;
  STRLEN  alloc;
- dMY_CXT;
+ dXSH_CXT;
 
- map   = MY_CXT.uid_storage.map;
- alloc = MY_CXT.uid_storage.alloc;
+ map   = XSH_CXT.uid_storage.map;
+ alloc = XSH_CXT.uid_storage.alloc;
 
  if (depth >= alloc) {
   STRLEN i;
@@ -2005,12 +1948,12 @@ static su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
    map[i].flags = 0;
   }
 
-  MY_CXT.uid_storage.map   = map;
-  MY_CXT.uid_storage.alloc = depth + 1;
+  XSH_CXT.uid_storage.map   = map;
+  XSH_CXT.uid_storage.alloc = depth + 1;
  }
 
- if (depth >= MY_CXT.uid_storage.used)
-  MY_CXT.uid_storage.used = depth + 1;
+ if (depth >= XSH_CXT.uid_storage.used)
+  XSH_CXT.uid_storage.used = depth + 1;
 
  return map + depth;
 }
@@ -2018,12 +1961,12 @@ static su_uid *su_uid_storage_fetch(pTHX_ UV depth) {
 static int su_uid_storage_check(pTHX_ UV depth, UV seq) {
 #define su_uid_storage_check(D, S) su_uid_storage_check(aTHX_ (D), (S))
  su_uid *uid;
- dMY_CXT;
+ dXSH_CXT;
 
- if (depth >= MY_CXT.uid_storage.used)
+ if (depth >= XSH_CXT.uid_storage.used)
   return 0;
 
- uid = MY_CXT.uid_storage.map + depth;
+ uid = XSH_CXT.uid_storage.map + depth;
 
  return (uid->seq == seq) && (uid->flags & SU_UID_ACTIVE);
 }
@@ -2127,7 +2070,7 @@ static I32 su_context_skip_db(pTHX_ I32 cxix) {
   PERL_CONTEXT *cx = cxstack + i;
 
   switch (CxTYPE(cx)) {
-#if SU_HAS_PERL(5, 17, 1)
+#if XSH_HAS_PERL(5, 17, 1)
    case CXt_LOOP_PLAIN:
 #endif
    case CXt_BLOCK:
@@ -2163,11 +2106,11 @@ static I32 su_context_normalize_up(pTHX_ I32 cxix) {
   PERL_CONTEXT *prev = cx - 1;
 
   switch (CxTYPE(prev)) {
-#if SU_HAS_PERL(5, 10, 0)
+#if XSH_HAS_PERL(5, 10, 0)
    case CXt_GIVEN:
    case CXt_WHEN:
 #endif
-#if SU_HAS_PERL(5, 11, 0)
+#if XSH_HAS_PERL(5, 11, 0)
    /* That's the only subcategory that can cause an extra BLOCK context */
    case CXt_LOOP_PLAIN:
 #else
@@ -2199,11 +2142,11 @@ static I32 su_context_normalize_down(pTHX_ I32 cxix) {
   PERL_CONTEXT *cx = next - 1;
 
   switch (CxTYPE(cx)) {
-#if SU_HAS_PERL(5, 10, 0)
+#if XSH_HAS_PERL(5, 10, 0)
    case CXt_GIVEN:
    case CXt_WHEN:
 #endif
-#if SU_HAS_PERL(5, 11, 0)
+#if XSH_HAS_PERL(5, 11, 0)
    /* That's the only subcategory that can cause an extra BLOCK context */
    case CXt_LOOP_PLAIN:
 #else
@@ -2234,7 +2177,7 @@ static I32 su_context_gimme(pTHX_ I32 cxix) {
 
   switch (CxTYPE(cx)) {
    /* gimme is always G_ARRAY for loop contexts. */
-#if SU_HAS_PERL(5, 11, 0)
+#if XSH_HAS_PERL(5, 11, 0)
    case CXt_LOOP_FOR:
    case CXt_LOOP_PLAIN:
    case CXt_LOOP_LAZYSV:
@@ -2267,83 +2210,62 @@ static I32 su_context_gimme(pTHX_ I32 cxix) {
  return G_VOID;
 }
 
-/* --- Global setup/teardown ----------------------------------------------- */
+/* --- Module setup/teardown ----------------------------------------------- */
 
-static VOL U32 su_initialized = 0;
-
-static void su_global_teardown(pTHX_ void *root) {
- if (!su_initialized)
-  return;
-
-#if SU_MULTIPLICITY
- if (aTHX != root)
-  return;
-#endif
-
- SU_LOCK(&su_uid_seq_counter_mutex);
- PerlMemShared_free(su_uid_seq_counter.seqs);
- su_uid_seq_counter.size = 0;
- SU_UNLOCK(&su_uid_seq_counter_mutex);
-
- MUTEX_DESTROY(&su_uid_seq_counter_mutex);
-
- su_initialized = 0;
-
- return;
-}
-
-XS(XS_Scope__Upper_unwind);
-XS(XS_Scope__Upper_yield);
-XS(XS_Scope__Upper_leave);
-
-#if SU_HAS_PERL(5, 9, 0)
-# define SU_XS_FILE_TYPE const char
-#else
-# define SU_XS_FILE_TYPE char
-#endif
-
-static void su_global_setup(pTHX_ SU_XS_FILE_TYPE *file) {
-#define su_global_setup(F) su_global_setup(aTHX_ (F))
+static void xsh_user_global_setup(pTHX) {
  HV *stash;
-
- if (su_initialized)
-  return;
 
  MUTEX_INIT(&su_uid_seq_counter_mutex);
 
- SU_LOCK(&su_uid_seq_counter_mutex);
+ XSH_LOCK(&su_uid_seq_counter_mutex);
  su_uid_seq_counter.seqs = NULL;
  su_uid_seq_counter.size = 0;
- SU_UNLOCK(&su_uid_seq_counter_mutex);
+ XSH_UNLOCK(&su_uid_seq_counter_mutex);
 
- stash = gv_stashpv(__PACKAGE__, 1);
+ stash = gv_stashpv(XSH_PACKAGE, 1);
  newCONSTSUB(stash, "TOP",           newSViv(0));
- newCONSTSUB(stash, "SU_THREADSAFE", newSVuv(SU_THREADSAFE));
-
- newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
- newXSproto("Scope::Upper::yield",  XS_Scope__Upper_yield,  file, NULL);
- newXSproto("Scope::Upper::leave",  XS_Scope__Upper_leave,  file, NULL);
-
-#if SU_MULTIPLICITY
- call_atexit(su_global_teardown, aTHX);
-#else
- call_atexit(su_global_teardown, NULL);
-#endif
-
- su_initialized = 1;
+ newCONSTSUB(stash, "SU_THREADSAFE", newSVuv(XSH_THREADSAFE));
 
  return;
 }
 
-/* --- Interpreter setup/teardown ------------------------------------------ */
+static void xsh_user_local_setup(pTHX_ xsh_user_cxt_t *cxt) {
+ cxt->stack_placeholder = NULL;
 
-static void su_local_teardown(pTHX_ void *param) {
+ /* NewOp() calls calloc() which just zeroes the memory with memset(). */
+ Zero(&(cxt->unwind_storage.return_op), 1, LISTOP);
+ cxt->unwind_storage.return_op.op_type   = OP_RETURN;
+ cxt->unwind_storage.return_op.op_ppaddr = PL_ppaddr[OP_RETURN];
+
+ Zero(&(cxt->unwind_storage.proxy_op), 1, OP);
+ cxt->unwind_storage.proxy_op.op_type   = OP_STUB;
+ cxt->unwind_storage.proxy_op.op_ppaddr = NULL;
+
+ Zero(&(cxt->yield_storage.leave_op), 1, UNOP);
+ cxt->yield_storage.leave_op.op_type   = OP_STUB;
+ cxt->yield_storage.leave_op.op_ppaddr = NULL;
+
+ Zero(&(cxt->yield_storage.proxy_op), 1, OP);
+ cxt->yield_storage.proxy_op.op_type   = OP_STUB;
+ cxt->yield_storage.proxy_op.op_ppaddr = NULL;
+
+ cxt->uplevel_storage.top   = NULL;
+ cxt->uplevel_storage.root  = NULL;
+ cxt->uplevel_storage.count = 0;
+
+ cxt->uid_storage.map   = NULL;
+ cxt->uid_storage.used  = 0;
+ cxt->uid_storage.alloc = 0;
+
+ return;
+}
+
+static void xsh_user_local_teardown(pTHX_ xsh_user_cxt_t *cxt) {
  su_uplevel_ud *cur;
- dMY_CXT;
 
- Safefree(MY_CXT.uid_storage.map);
+ Safefree(cxt->uid_storage.map);
 
- cur = MY_CXT.uplevel_storage.root;
+ cur = cxt->uplevel_storage.root;
  if (cur) {
   su_uplevel_ud *prev;
   do {
@@ -2356,38 +2278,13 @@ static void su_local_teardown(pTHX_ void *param) {
  return;
 }
 
-static void su_local_setup(pTHX) {
-#define su_local_setup() su_local_setup(aTHX)
- MY_CXT_INIT;
+static void xsh_user_global_teardown(pTHX) {
+ XSH_LOCK(&su_uid_seq_counter_mutex);
+ PerlMemShared_free(su_uid_seq_counter.seqs);
+ su_uid_seq_counter.size = 0;
+ XSH_UNLOCK(&su_uid_seq_counter_mutex);
 
- MY_CXT.stack_placeholder = NULL;
-
- /* NewOp() calls calloc() which just zeroes the memory with memset(). */
- Zero(&(MY_CXT.unwind_storage.return_op), 1, LISTOP);
- MY_CXT.unwind_storage.return_op.op_type   = OP_RETURN;
- MY_CXT.unwind_storage.return_op.op_ppaddr = PL_ppaddr[OP_RETURN];
-
- Zero(&(MY_CXT.unwind_storage.proxy_op), 1, OP);
- MY_CXT.unwind_storage.proxy_op.op_type   = OP_STUB;
- MY_CXT.unwind_storage.proxy_op.op_ppaddr = NULL;
-
- Zero(&(MY_CXT.yield_storage.leave_op), 1, UNOP);
- MY_CXT.yield_storage.leave_op.op_type   = OP_STUB;
- MY_CXT.yield_storage.leave_op.op_ppaddr = NULL;
-
- Zero(&(MY_CXT.yield_storage.proxy_op), 1, OP);
- MY_CXT.yield_storage.proxy_op.op_type   = OP_STUB;
- MY_CXT.yield_storage.proxy_op.op_ppaddr = NULL;
-
- MY_CXT.uplevel_storage.top   = NULL;
- MY_CXT.uplevel_storage.root  = NULL;
- MY_CXT.uplevel_storage.count = 0;
-
- MY_CXT.uid_storage.map   = NULL;
- MY_CXT.uid_storage.used  = 0;
- MY_CXT.uid_storage.alloc = 0;
-
- call_atexit(su_local_teardown, NULL);
+ MUTEX_DESTROY(&su_uid_seq_counter_mutex);
 
  return;
 }
@@ -2424,7 +2321,7 @@ default_cx:                     \
   }                        \
  } STMT_END
 
-#if SU_HAS_PERL(5, 10, 0)
+#if XSH_HAS_PERL(5, 10, 0)
 # define SU_INFO_COUNT 11
 #else
 # define SU_INFO_COUNT 10
@@ -2436,7 +2333,7 @@ XS(XS_Scope__Upper_unwind) {
 #else
  dXSARGS;
 #endif
- dMY_CXT;
+ dXSH_CXT;
  I32 cxix;
 
  PERL_UNUSED_VAR(cv); /* -W */
@@ -2451,12 +2348,12 @@ XS(XS_Scope__Upper_unwind) {
      continue;
    case CXt_EVAL:
    case CXt_FORMAT:
-    MY_CXT.unwind_storage.cxix   = cxix;
-    MY_CXT.unwind_storage.items  = items;
-    MY_CXT.unwind_storage.savesp = PL_stack_sp;
+    XSH_CXT.unwind_storage.cxix   = cxix;
+    XSH_CXT.unwind_storage.items  = items;
+    XSH_CXT.unwind_storage.savesp = PL_stack_sp;
     if (items > 0) {
-     MY_CXT.unwind_storage.items--;
-     MY_CXT.unwind_storage.savesp--;
+     XSH_CXT.unwind_storage.items--;
+     XSH_CXT.unwind_storage.savesp--;
     }
     /* pp_entersub will want to sanitize the stack after returning from there
      * Screw that, we're insane!
@@ -2480,19 +2377,19 @@ XS(XS_Scope__Upper_yield) {
 #else
  dXSARGS;
 #endif
- dMY_CXT;
+ dXSH_CXT;
  I32 cxix;
 
  PERL_UNUSED_VAR(cv); /* -W */
  PERL_UNUSED_VAR(ax); /* -Wall */
 
  SU_GET_CONTEXT(0, items - 1, su_context_here());
- MY_CXT.yield_storage.cxix   = cxix;
- MY_CXT.yield_storage.items  = items;
- MY_CXT.yield_storage.savesp = PL_stack_sp;
+ XSH_CXT.yield_storage.cxix   = cxix;
+ XSH_CXT.yield_storage.items  = items;
+ XSH_CXT.yield_storage.savesp = PL_stack_sp;
  if (items > 0) {
-  MY_CXT.yield_storage.items--;
-  MY_CXT.yield_storage.savesp--;
+  XSH_CXT.yield_storage.items--;
+  XSH_CXT.yield_storage.savesp--;
  }
  /* See XS_Scope__Upper_unwind */
  if (GIMME_V == G_SCALAR)
@@ -2509,14 +2406,14 @@ XS(XS_Scope__Upper_leave) {
 #else
  dXSARGS;
 #endif
- dMY_CXT;
+ dXSH_CXT;
 
  PERL_UNUSED_VAR(cv); /* -W */
  PERL_UNUSED_VAR(ax); /* -Wall */
 
- MY_CXT.yield_storage.cxix   = su_context_here();
- MY_CXT.yield_storage.items  = items;
- MY_CXT.yield_storage.savesp = PL_stack_sp;
+ XSH_CXT.yield_storage.cxix   = su_context_here();
+ XSH_CXT.yield_storage.items  = items;
+ XSH_CXT.yield_storage.savesp = PL_stack_sp;
  /* See XS_Scope__Upper_unwind */
  if (GIMME_V == G_SCALAR)
   PL_stack_sp = PL_stack_base + PL_markstack_ptr[1] + 1;
@@ -2530,35 +2427,22 @@ PROTOTYPES: ENABLE
 
 BOOT:
 {
- su_global_setup(file);
- su_local_setup();
+ xsh_setup();
+ newXSproto("Scope::Upper::unwind", XS_Scope__Upper_unwind, file, NULL);
+ newXSproto("Scope::Upper::yield",  XS_Scope__Upper_yield,  file, NULL);
+ newXSproto("Scope::Upper::leave",  XS_Scope__Upper_leave,  file, NULL);
 }
 
-#if SU_THREADSAFE
+#if XSH_THREADSAFE
 
 void
 CLONE(...)
 PROTOTYPE: DISABLE
-PREINIT:
- su_uid_storage new_cxt;
 PPCODE:
- {
-  dMY_CXT;
-  new_cxt.map   = NULL;
-  new_cxt.used  = 0;
-  new_cxt.alloc = 0;
-  su_uid_storage_dup(&new_cxt, &MY_CXT.uid_storage, MY_CXT.uid_storage.used);
- }
- {
-  MY_CXT_CLONE;
-  MY_CXT.uplevel_storage.top   = NULL;
-  MY_CXT.uplevel_storage.root  = NULL;
-  MY_CXT.uplevel_storage.count = 0;
-  MY_CXT.uid_storage           = new_cxt;
- }
+ xsh_clone();
  XSRETURN(0);
 
-#endif /* SU_THREADSAFE */
+#endif /* XSH_THREADSAFE */
 
 void
 HERE()
@@ -2783,7 +2667,7 @@ PPCODE:
   case CXt_EVAL:
    if (CxOLD_OP_TYPE(cx) == OP_ENTEREVAL) {
     /* eval STRING */
-#if SU_HAS_PERL(5, 17, 4)
+#if XSH_HAS_PERL(5, 17, 4)
     PUSHs(newSVpvn_flags(SvPVX(cx->blk_eval.cur_text),
                          SvCUR(cx->blk_eval.cur_text)-2,
                          SvUTF8(cx->blk_eval.cur_text)|SVs_TEMP));
@@ -2810,7 +2694,7 @@ PPCODE:
  /* warnings (9) */
  {
   SV *mask = NULL;
-#if SU_HAS_PERL(5, 9, 4)
+#if XSH_HAS_PERL(5, 9, 4)
   STRLEN *old_warnings = cop->cop_warnings;
 #else
   SV *old_warnings = cop->cop_warnings;
@@ -2819,20 +2703,20 @@ PPCODE:
    if (PL_dowarn & G_WARN_ON)
     goto context_info_warnings_on;
    else
-#if SU_HAS_PERL(5, 17, 4)
+#if XSH_HAS_PERL(5, 17, 4)
     mask = &PL_sv_undef;
 #else
     goto context_info_warnings_off;
 #endif
   } else if (old_warnings == pWARN_NONE) {
-#if !SU_HAS_PERL(5, 17, 4)
+#if !XSH_HAS_PERL(5, 17, 4)
 context_info_warnings_off:
 #endif
    mask = su_newmortal_pvn(WARN_NONEstring, WARNsize);
   } else if (old_warnings == pWARN_ALL) {
    HV *bits;
 context_info_warnings_on:
-#if SU_HAS_PERL(5, 8, 7)
+#if XSH_HAS_PERL(5, 8, 7)
    bits = get_hv("warnings::Bits", 0);
    if (bits) {
     SV **bits_all = hv_fetchs(bits, "all", FALSE);
@@ -2843,7 +2727,7 @@ context_info_warnings_on:
    if (!mask)
     mask = su_newmortal_pvn(WARN_ALLstring, WARNsize);
   } else {
-#if SU_HAS_PERL(5, 9, 4)
+#if XSH_HAS_PERL(5, 9, 4)
    mask = su_newmortal_pvn((char *) (old_warnings + 1), old_warnings[0]);
 #else
    mask = sv_mortalcopy(old_warnings);
@@ -2851,7 +2735,7 @@ context_info_warnings_on:
   }
   PUSHs(mask);
  }
-#if SU_HAS_PERL(5, 10, 0)
+#if XSH_HAS_PERL(5, 10, 0)
  /* hints hash (10) */
  {
   COPHH *hints_hash = CopHINTHASH_get(cop);
