@@ -384,7 +384,7 @@ static su_uplevel_ud *su_uplevel_ud_new(pTHX) {
  si->si_stack   = newAV();
  AvREAL_off(si->si_stack);
  si->si_cxstack = NULL;
- si->si_cxmax   = 0;
+ si->si_cxmax   = -1;
 
  sud->si = si;
 
