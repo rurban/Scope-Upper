@@ -1361,7 +1361,7 @@ static void su_unwind(pTHX_ void *ud_) {
   dounwind(cxix);
 
  mark = PL_markstack[cxstack[cxix].blk_oldmarksp];
- *PL_markstack_ptr = PL_stack_sp - PL_stack_base - items;
+ PUSHMARK(PL_stack_sp - items);
 
  XSH_D({
   I32 gimme = GIMME_V;
