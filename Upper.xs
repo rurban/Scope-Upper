@@ -1984,7 +1984,7 @@ static I32 su_uplevel(pTHX_ CV *callback, I32 cxix, I32 args) {
   * target context, plus the forthcoming arguments. */
  new_mark = cx->blk_oldsp;
  av_extend(si->si_stack, new_mark + 1 + args + 1);
- Copy(PL_curstack, AvARRAY(si->si_stack), new_mark + 1, SV *);
+ Copy(AvARRAY(PL_curstack), AvARRAY(si->si_stack), new_mark + 1, SV *);
  AvFILLp(si->si_stack) = new_mark;
  SU_POISON(AvARRAY(si->si_stack) + new_mark + 1, args + 1, SV *);
 
