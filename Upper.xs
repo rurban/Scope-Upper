@@ -203,24 +203,6 @@ static U8 su_op_gimme_reverse(U8 gimme) {
 # define NEGATIVE_INDICES_VAR "NEGATIVE_INDICES"
 #endif
 
-/* CX_ARGARRAY(cx): the AV at pad[0] of the CV associated with CXt_SUB
- * context cx */
-
-#if XSH_HAS_PERL(5, 23, 8)
-# define CX_ARGARRAY(cx) \
-    ((AV*)(AvARRAY(MUTABLE_AV(                     \
-        PadlistARRAY(CvPADLIST(cx->blk_sub.cv))[   \
-            CvDEPTH(cx->blk_sub.cv)]))[0]))
-# define CX_ARGARRAY_set(cx,ary) \
-    (AvARRAY(MUTABLE_AV(                     \
-        PadlistARRAY(CvPADLIST(cx->blk_sub.cv))[   \
-            CvDEPTH(cx->blk_sub.cv)]))[0] = (SV*)(ary))
-#else
-# define CX_ARGARRAY(cx)         (cx->blk_sub.argarray)
-# define CX_ARGARRAY_set(cx,ary) (cx->blk_sub.argarray = (ary))
-#endif
-
-
 /* --- Error messages ------------------------------------------------------ */
 
 static const char su_stack_smash[]    = "Cannot target a scope outside of the current stack";
@@ -1689,7 +1671,7 @@ static int su_uplevel_goto_runops(pTHX) {
     switch (CxTYPE(cx)) {
      case CXt_SUB:
       if (CxHASARGS(cx)) {
-       argarray = CX_ARGARRAY(cx);
+       argarray = cx->blk_sub.argarray;
        goto done;
       }
       break;
@@ -1810,8 +1792,8 @@ static void su_uplevel_restore_old(pTHX_ void *sus_) {
    * reached without a goto() happening, and the old argarray member is
    * actually our fake argarray. Destroy it properly in that case. */
   if (cx->blk_sub.cv == sud->renamed) {
-   SvREFCNT_dec(CX_ARGARRAY(cx));
-   CX_ARGARRAY_set(cx, argarray);
+   SvREFCNT_dec(cx->blk_sub.argarray);
+   cx->blk_sub.argarray = argarray;
   }
 
   CvDEPTH(sud->callback)--;
@@ -2233,7 +2215,7 @@ static I32 su_uplevel_old(pTHX_ CV *callback, I32 cxix, I32 args) {
 
  if ((PL_op = PL_ppaddr[OP_ENTERSUB](aTHX))) {
   PERL_CONTEXT *sub_cx = cxstack + cxstack_ix;
-  AV *argarray = CX_ARGARRAY(cx);
+  AV *argarray = cx->blk_sub.argarray;
 
   /* If pp_entersub() returns a non-null OP, it means that the callback is not
    * an XSUB. */
@@ -2253,9 +2235,9 @@ static I32 su_uplevel_old(pTHX_ CV *callback, I32 cxix, I32 args) {
    av_extend(av, AvMAX(argarray));
    AvFILLp(av) = AvFILLp(argarray);
    Copy(AvARRAY(argarray), AvARRAY(av), AvFILLp(av) + 1, SV *);
-   CX_ARGARRAY_set(sub_cx, av);
+   sub_cx->blk_sub.argarray = av;
   } else {
-   SvREFCNT_inc_simple_void(CX_ARGARRAY(sub_cx));
+   SvREFCNT_inc_simple_void(sub_cx->blk_sub.argarray);
   }
 
   if (su_uplevel_goto_static(CvROOT(renamed))) {
