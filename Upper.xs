@@ -17,9 +17,7 @@
 /* --- Compatibility ------------------------------------------------------- */
 
 /* perl 5.23.8 onwards has a revamped context system */
-#if XSH_HAS_PERL(5, 23, 8)
-# define SU_HAS_NEW_CXT
-#endif
+#define SU_HAS_NEW_CXT XSH_HAS_PERL(5, 23, 8)
 
 #ifndef dVAR
 # define dVAR dNOOP
@@ -355,7 +353,7 @@ typedef struct {
  CV            *callback;
  CV            *renamed;
 
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
  U8             *cxtypes; /* array of saved context types */
  I32            gap;      /* how many contexts have temporarily CXt_NULLed out*/
  AV*            argarray; /* the PL_curpad[0] of the uplevel sub */
@@ -377,7 +375,7 @@ typedef struct {
 #endif
 } su_uplevel_ud;
 
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
 /* used to flag a context stack entry whose type has been temporarily
  * set to CXt_NULL. It relies on perl not using this value for real
  * CXt_NULL entries.
@@ -397,7 +395,7 @@ static su_uplevel_ud *su_uplevel_ud_new(pTHX) {
  sud->tmp_uid_storage.used  = 0;
  sud->tmp_uid_storage.alloc = 0;
 
-#ifndef SU_HAS_NEW_CXT
+#if !SU_HAS_NEW_CXT
  Newx(si, 1, PERL_SI);
  si->si_stack   = newAV();
  AvREAL_off(si->si_stack);
@@ -413,7 +411,7 @@ static su_uplevel_ud *su_uplevel_ud_new(pTHX) {
 static void su_uplevel_ud_delete(pTHX_ su_uplevel_ud *sud) {
 #define su_uplevel_ud_delete(S) su_uplevel_ud_delete(aTHX_ (S))
 
-#ifndef SU_HAS_NEW_CXT
+#if !SU_HAS_NEW_CXT
  PERL_SI *si = sud->si;
 
  Safefree(si->si_cxstack);
@@ -906,7 +904,7 @@ static void su_localize(pTHX_ void *ud_) {
 /* new perl context implementation frees savestack *before* restoring
  * PL_curcop. Temporarily restore it prematurely to make gv_fetch*
  * looks up unqualified var names in the caller's package */
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
   COP *old_cop = PL_curcop;
   PL_curcop = CX_CUR()->blk_oldcop;
 #endif
@@ -918,7 +916,7 @@ static void su_localize(pTHX_ void *ud_) {
   const char *name = SvPV_const(sv, len);
   gv = gv_fetchpvn_flags(name, len, GV_ADDMULTI, t);
 #endif
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
   CX_CUR()->blk_oldcop = PL_curcop;
 #endif
  }
@@ -1174,7 +1172,7 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  XSH_D(su_debug_log("%p: ### su_init(cxix=%d, size=%d)\n", ud, cxix, size));
 
  depth = PL_scopestack_ix - cxstack[cxix].blk_oldscopesp;
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
  depth += (cxstack_ix - cxix); /* each context frame holds 1 scope */
 #endif
  XSH_D(su_debug_log(
@@ -1226,7 +1224,7 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
  cur_cx_ix  = cxix;
  cur_scope_ix = cxstack[cxix].blk_oldscopesp;
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
  XSH_D(su_debug_log("%p:     cx=%-2d %-11s\n",
       ud, cur_cx_ix, SU_CXNAME(cxstack+cur_cx_ix)));
  cur_cx_ix++;
@@ -1236,7 +1234,7 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
   I32 *ixp;
   I32 offset;
 
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
 
   if (   cur_cx_ix <= cxstack_ix
       && cur_scope_ix == cxstack[cur_cx_ix].blk_oldscopesp
@@ -1294,7 +1292,7 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
   origin[i].orig_ix = *ixp;
   *ixp += offset;
 
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
   XSH_D({
    if (ixp == &PL_scopestack[cur_scope_ix-1])
     su_debug_log(
@@ -1641,7 +1639,7 @@ static int su_uplevel_goto_static(const OP *o) {
  return 0;
 }
 
-#if !defined(SU_HAS_NEW_CXT) && SU_UPLEVEL_HIJACKS_RUNOPS
+#if !SU_HAS_NEW_CXT && SU_UPLEVEL_HIJACKS_RUNOPS
 
 static int su_uplevel_goto_runops(pTHX) {
 #define su_uplevel_goto_runops() su_uplevel_goto_runops(aTHX)
@@ -1703,7 +1701,7 @@ done:
 
 #define su_at_underscore(C) PadARRAY(PadlistARRAY(CvPADLIST(C))[CvDEPTH(C)])[0]
 
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
 
 static void su_uplevel_restore_new(pTHX_ void *sus_) {
  su_uplevel_ud *sud = sus_;
@@ -1974,7 +1972,7 @@ static CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
  return cv;
 }
 
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
 
 /* this one-shot runops "loop" is designed to be called just before
  * execution of the first op following an uplevel()'s entersub. It gets a
@@ -2431,7 +2429,7 @@ static I32 su_context_skip_db(pTHX_ I32 cxix) {
  return cxix;
 }
 
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
 
 /* convert a physical context stack index into the logical equivalent:
  * one that ignores all the context frames hidden by uplevel().
@@ -3243,7 +3241,7 @@ PPCODE:
      args = items - 2;
     }
     /* su_uplevel() takes care of extending the stack if needed. */
-#ifdef SU_HAS_NEW_CXT
+#if SU_HAS_NEW_CXT
     ret = su_uplevel_new(aTHX_ (CV *) code, cxix, args);
 #else
     ret = su_uplevel_old(aTHX_ (CV *) code, cxix, args);
