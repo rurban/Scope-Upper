@@ -21,7 +21,6 @@
 # define SU_HAS_NEW_CXT
 #endif
 
-
 #ifndef dVAR
 # define dVAR dNOOP
 #endif
@@ -357,9 +356,9 @@ typedef struct {
  CV            *renamed;
 
 #ifdef SU_HAS_NEW_CXT
- U8            *cxtypes; /* array of saved context types */
- I32           gap;      /* how many contexts have temporarily CXt_NULLed out */
- AV*           argarray; /* the PL_curpad[0] of the uplevel sub */
+ U8             *cxtypes; /* array of saved context types */
+ I32            gap;      /* how many contexts have temporarily CXt_NULLed out*/
+ AV*            argarray; /* the PL_curpad[0] of the uplevel sub */
 #else
  I32            target_depth;
  CV            *target;
@@ -398,7 +397,7 @@ static su_uplevel_ud *su_uplevel_ud_new(pTHX) {
  sud->tmp_uid_storage.used  = 0;
  sud->tmp_uid_storage.alloc = 0;
 
- #ifndef SU_HAS_NEW_CXT
+#ifndef SU_HAS_NEW_CXT
  Newx(si, 1, PERL_SI);
  si->si_stack   = newAV();
  AvREAL_off(si->si_stack);
@@ -531,7 +530,6 @@ static void xsh_user_clone(pTHX_ const xsh_user_cxt_t *old_cxt, xsh_user_cxt_t *
 #else
 # define SU_SAVE_HELEM_OR_HDELETE_SIZE SU_SAVE_HELEM_SIZE
 #endif
-
 
 #ifndef SvCANEXISTDELETE
 # define SvCANEXISTDELETE(sv) \
@@ -713,18 +711,17 @@ static void su_save_gvcv(pTHX_ GV *gv) {
 /* --- Actions ------------------------------------------------------------- */
 
 typedef struct {
- I32  orig_ix; /* original savestack_ix */
- I32  offset;  /* how much we bumped this savestack index */
+ I32 orig_ix; /* original savestack_ix */
+ I32 offset;  /* how much we bumped this savestack index */
 } su_ud_origin_elem;
 
 typedef struct {
- U8   type;
- U8   private;
+ U8                 type;
+ U8                 private;
  /* spare */
- I32  depth;
+ I32                depth;
  su_ud_origin_elem *origin;
 } su_ud_common;
-
 
 #define SU_UD_TYPE(U)    (((su_ud_common *) (U))->type)
 #define SU_UD_PRIVATE(U) (((su_ud_common *) (U))->private)
@@ -1072,8 +1069,6 @@ static const int su_cxt_enter_count[] = {
 # endif
 };
 
-
-
 /* push at least 'size' slots worth of padding onto the savestack */
 
 static void su_ss_push_padding(pTHX_ void *ud, I32 size) {
@@ -1087,10 +1082,7 @@ static void su_ss_push_padding(pTHX_ void *ud, I32 size) {
  save_alloc((size - SU_SAVE_ALLOC_SIZE)*sizeof(*PL_savestack), 0);
 }
 
-
 static void su_pop(pTHX_ void *ud);
-
-
 
 /* push an su_pop destructor onto the savestack with suitable padding.
  * first indicates that this is the first push of a destructor */
@@ -1109,7 +1101,6 @@ static void su_ss_push_destructor(pTHX_ void *ud, I32 depth, bool first) {
  assert(first ||
         PL_savestack_ix <= origin[depth+1].orig_ix +  origin[depth+1].offset);
 }
-
 
 /* this is called during each leave_scope() via SAVEDESTRUCTOR_X */
 
@@ -1171,7 +1162,6 @@ static void su_pop(pTHX_ void *ud) {
  XSH_D(su_debug_log("%p:     end pop: ss_ix=%d\n", ud, PL_savestack_ix));
 }
 
-
 /* --- Initialize the stack and the action userdata ------------------------ */
 
 static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
@@ -1229,7 +1219,7 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
   *
   * The passed cxix argument represents the scope we wish to inject into;
   * we have to adjust all the savestack frame boundaries above (but not
-  * including) that context. 
+  * including) that context.
   */
 
  Newx(origin, depth, su_ud_origin_elem);
@@ -1331,7 +1321,6 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
  su_ss_push_destructor(aTHX_ ud, depth-1, 1);
 }
-
 
 /* --- Unwind stack -------------------------------------------------------- */
 
@@ -1985,8 +1974,6 @@ static CV *su_cv_clone(pTHX_ CV *proto, GV *gv) {
  return cv;
 }
 
-
-
 #ifdef SU_HAS_NEW_CXT
 
 /* this one-shot runops "loop" is designed to be called just before
@@ -2029,8 +2016,6 @@ static int su_uplevel_runops_hook_entersub(pTHX) {
  return 0;
 }
 
-
-
 static I32 su_uplevel_new(pTHX_ CV *callback, I32 cxix, I32 args) {
  su_uplevel_ud *sud;
  U8 *saved_cxtypes;
@@ -2060,7 +2045,6 @@ static I32 su_uplevel_new(pTHX_ CV *callback, I32 cxix, I32 args) {
  sud->gap      = cxstack_ix - cxix + 1;
  sud->argarray = NULL;
 
-
  Newx(saved_cxtypes, sud->gap, U8);
  sud->cxtypes = saved_cxtypes;
 
@@ -2081,7 +2065,6 @@ static I32 su_uplevel_new(pTHX_ CV *callback, I32 cxix, I32 args) {
   * caller). It shares the padlist with callback */
  sud->renamed = su_cv_clone(callback, CvGV(base_cv));
  sud->old_runops = PL_runops;
-
 
  if (!CvISXSUB(sud->renamed) && CxHASARGS(&cxstack[cxix])) {
   sud->argarray = (AV*)su_at_underscore(base_cv);
@@ -2448,7 +2431,6 @@ static I32 su_context_skip_db(pTHX_ I32 cxix) {
  return cxix;
 }
 
-
 #ifdef SU_HAS_NEW_CXT
 
 /* convert a physical context stack index into the logical equivalent:
@@ -2498,7 +2480,6 @@ static I32 su_context_logical2real(pTHX_ I32 cxix) {
 # define su_context_real2logical(C) (C)
 # define su_context_logical2real(C) (C)
 #endif
-
 
 static I32 su_context_normalize_up(pTHX_ I32 cxix) {
 #define su_context_normalize_up(C) su_context_normalize_up(aTHX_ (C))
