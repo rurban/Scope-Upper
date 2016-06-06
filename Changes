@@ -1,5 +1,14 @@
 Revision history for Scope-Upper
 
+0.29    2016-06-06 12:00 UTC
+        + Chg : A large chunk of boilerplate XS code, which is also used in
+                other XS modules, has been factored out of the main .xs file
+                to a collection of .h files in the xsh subdirectory.
+        + Fix : [RT #112246] : Blead breaks Scope::Upper
+                Dave Mitchell provided a new implementation of reap(),
+                localize_*() and uplevel() to match the new context stack
+                handling in perl 5.24. Many thanks to him.
+
 0.28    2015-08-18 15:00 UTC
         + Chg : SUB() and EVAL() will now warn if they cannot find an
                 appropriate context in the current stack. They will still
