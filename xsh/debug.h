@@ -9,7 +9,7 @@
 
 #if XSH_DEBUG
 # define XSH_D(X) STMT_START X STMT_END
-static void su_debug_log(const char *fmt, ...) {
+static void xsh_debug_log(const char *fmt, ...) {
  va_list va;
  SV *sv;
  dTHX;

@@ -754,7 +754,7 @@ static void su_call(pTHX_ SV *cb) {
 
  dSP;
 
- XSH_D(su_debug_log("@@@ call scope_ix=%2d save_ix=%2d\n",
+ XSH_D(xsh_debug_log("@@@ call scope_ix=%2d save_ix=%2d\n",
                           PL_scopestack_ix, PL_savestack_ix));
 
  ENTER;
@@ -926,8 +926,8 @@ static void su_localize(pTHX_ void *ud_) {
  XSH_D({
   SV *z = newSV(0);
   SvUPGRADE(z, t);
-  su_debug_log("%p:     === localize a %s\n",ud, sv_reftype(z, 0));
-  su_debug_log("%p:         depth=%2d scope_ix=%2d save_ix=%2d\n",
+  xsh_debug_log("%p:     === localize a %s\n",ud, sv_reftype(z, 0));
+  xsh_debug_log("%p:         depth=%2d scope_ix=%2d save_ix=%2d\n",
                 ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix);
   SvREFCNT_dec(z);
  });
@@ -1083,7 +1083,7 @@ static void su_ss_push_padding(pTHX_ void *ud, I32 size) {
   return;
  if (size < SU_SAVE_ALLOC_SIZE + 1) /* minimum possible SAVEt_ALLOC */
   size = SU_SAVE_ALLOC_SIZE + 1;
- XSH_D(su_debug_log(
+ XSH_D(xsh_debug_log(
         "%p:     push %2d padding at save_ix=%d\n",
          ud, size, PL_savestack_ix));
  save_alloc((size - SU_SAVE_ALLOC_SIZE)*sizeof(*PL_savestack), 0);
@@ -1101,7 +1101,7 @@ static void su_ss_push_destructor(pTHX_ void *ud, I32 depth, bool first) {
  assert(first || origin[depth+1].orig_ix == PL_savestack_ix);
  su_ss_push_padding(ud,
     (origin[depth].orig_ix + origin[depth].offset) - PL_savestack_ix);
- XSH_D(su_debug_log(
+ XSH_D(xsh_debug_log(
         "%p:     push destructor at save_ix=%d depth=%d scope_ix=%d\n",
          ud, PL_savestack_ix, depth, PL_scopestack_ix));
  SAVEDESTRUCTOR_X(su_pop, ud);
@@ -1119,17 +1119,17 @@ static void su_pop(pTHX_ void *ud) {
  depth  = SU_UD_DEPTH(ud);
  origin = SU_UD_ORIGIN(ud);
 
- XSH_D(su_debug_log( "%p: ### su_pop: depth=%d\n", ud, depth));
+ XSH_D(xsh_debug_log( "%p: ### su_pop: depth=%d\n", ud, depth));
 
  depth--;
  mark = PL_savestack_ix;
  base = origin[depth].orig_ix;
 
- XSH_D(su_debug_log("%p:     residual savestack frame is %d(+%d)..%d\n",
+ XSH_D(xsh_debug_log("%p:     residual savestack frame is %d(+%d)..%d\n",
                      ud, base, origin[depth].offset, mark));
 
  if (base < mark) {
-  XSH_D(su_debug_log("%p:     clear leftovers at %d..%d\n", ud, base, mark));
+  XSH_D(xsh_debug_log("%p:     clear leftovers at %d..%d\n", ud, base, mark));
   leave_scope(base);
  }
  assert(PL_savestack_ix == base);
@@ -1142,7 +1142,7 @@ static void su_pop(pTHX_ void *ud) {
   I32 offset = origin[0].offset; /* grab value before origin is freed */
   switch (SU_UD_TYPE(ud)) {
    case SU_UD_TYPE_REAP: {
-    XSH_D(su_debug_log("%p:     === reap\n%p: depth=%d scope_ix=%d save_ix=%d\n",
+    XSH_D(xsh_debug_log("%p:     === reap\n%p: depth=%d scope_ix=%d save_ix=%d\n",
                    ud, ud, SU_UD_DEPTH(ud), PL_scopestack_ix, PL_savestack_ix));
     SAVEDESTRUCTOR_X(su_call, SU_UD_REAP_CB(ud));
     SU_UD_FREE(ud);
@@ -1166,7 +1166,7 @@ static void su_pop(pTHX_ void *ud) {
   assert(PL_savestack_ix == base + offset);
  }
 
- XSH_D(su_debug_log("%p:     end pop: ss_ix=%d\n", ud, PL_savestack_ix));
+ XSH_D(xsh_debug_log("%p:     end pop: ss_ix=%d\n", ud, PL_savestack_ix));
 }
 
 /* --- Initialize the stack and the action userdata ------------------------ */
@@ -1178,13 +1178,13 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  I32 cur_cx_ix;
  I32 cur_scope_ix;
 
- XSH_D(su_debug_log("%p: ### su_init(cxix=%d, size=%d)\n", ud, cxix, size));
+ XSH_D(xsh_debug_log("%p: ### su_init(cxix=%d, size=%d)\n", ud, cxix, size));
 
  depth = PL_scopestack_ix - cxstack[cxix].blk_oldscopesp;
 #if SU_HAS_NEW_CXT
  depth += (cxstack_ix - cxix); /* each context frame holds 1 scope */
 #endif
- XSH_D(su_debug_log(
+ XSH_D(xsh_debug_log(
    "%p:     going down by depth=%d with scope_ix=%d save_ix=%d\n",
     ud, depth, PL_scopestack_ix, PL_savestack_ix));
 
@@ -1234,7 +1234,7 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  cur_cx_ix  = cxix;
  cur_scope_ix = cxstack[cxix].blk_oldscopesp;
 #if SU_HAS_NEW_CXT
- XSH_D(su_debug_log("%p:     cx=%-2d %-11s\n",
+ XSH_D(xsh_debug_log("%p:     cx=%-2d %-11s\n",
       ud, cur_cx_ix, SU_CXNAME(cxstack+cur_cx_ix)));
  cur_cx_ix++;
 #endif
@@ -1257,14 +1257,14 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
   XSH_D({
    if (cur_cx_ix <= cxstack_ix) {
     if (cur_scope_ix == cxstack[cur_cx_ix].blk_oldscopesp) {
-     su_debug_log(
+     xsh_debug_log(
        "%p:     cx=%-2d %s\n%p:     ------------------\n",
        ud, cur_cx_ix, SU_CXNAME(cxstack+cur_cx_ix), ud);
      cur_cx_ix++;
     }
     else if (cur_scope_ix + su_cxt_enter_count[CxTYPE(cxstack+cur_cx_ix)]
              == cxstack[cur_cx_ix].blk_oldscopesp)
-     su_debug_log("%p:     ------------------\n", ud);
+     xsh_debug_log("%p:     ------------------\n", ud);
    }
   });
   ixp = &PL_scopestack[cur_scope_ix++];
@@ -1304,17 +1304,17 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 #if SU_HAS_NEW_CXT
   XSH_D({
    if (ixp == &PL_scopestack[cur_scope_ix-1])
-    su_debug_log(
+    xsh_debug_log(
      "%p:           ENTER       origin[%d] scope[%d] savestack=%d+%d\n",
       ud, i, cur_scope_ix, origin[i].orig_ix, origin[i].offset);
    else
-    su_debug_log(
+    xsh_debug_log(
      "%p:     cx=%-2d %-11s origin[%d] scope[%d] savestack=%d+%d\n",
       ud, cur_cx_ix-1, SU_CXNAME(cxstack+cur_cx_ix-1),
       i, cur_scope_ix, origin[i].orig_ix, origin[i].offset);
   });
 #else
-  XSH_D(su_debug_log(
+  XSH_D(xsh_debug_log(
     "%p:                 ENTER origin[%d] scope[%d] savestack=%d+%d\n",
      ud, i, cur_scope_ix, origin[i].orig_ix, origin[i].offset));
 #endif
@@ -1358,7 +1358,7 @@ static void su_unwind(pTHX_ void *ud_) {
 
  XSH_D({
   I32 gimme = GIMME_V;
-  su_debug_log("%p: cx=%d gimme=%s items=%d sp=%d oldmark=%d mark=%d\n",
+  xsh_debug_log("%p: cx=%d gimme=%s items=%d sp=%d oldmark=%d mark=%d\n",
                 &XSH_CXT, cxix,
                 gimme == G_VOID ? "void" : gimme == G_ARRAY ? "list" : "scalar",
                 items, PL_stack_sp - PL_stack_base, *PL_markstack_ptr, mark);
@@ -1718,7 +1718,7 @@ static void su_uplevel_restore_new(pTHX_ void *sus_) {
 
  for (i = 0; i < sud->gap; i++) {
   PERL_CONTEXT *cx = cxstack + sud->cxix + i;
-   XSH_D(su_debug_log("su_uplevel_restore: i=%d cxix=%d type %s => %s\n",
+   XSH_D(xsh_debug_log("su_uplevel_restore: i=%d cxix=%d type %s => %s\n",
         i, cx-cxstack, SU_CX_TYPENAME(CxTYPE(cx)),
         SU_CX_TYPENAME(saved_cxtypes[i] & CXTYPEMASK)));
    cx->cx_type = saved_cxtypes[i];
@@ -2062,7 +2062,7 @@ static I32 su_uplevel_new(pTHX_ CV *callback, I32 cxix, I32 args) {
  for (i = 0; i < sud->gap; i++) {
   PERL_CONTEXT *cx = cxstack + cxix + i;
   saved_cxtypes[i] = cx->cx_type; /* save type and flags */
-  XSH_D(su_debug_log("su_uplevel: i=%d cxix=%d type %-11s => %s\n",
+  XSH_D(xsh_debug_log("su_uplevel: i=%d cxix=%d type %-11s => %s\n",
         i, cx-cxstack, SU_CX_TYPENAME(CxTYPE(cx)), SU_CX_TYPENAME(CXt_NULL)));
   cx->cx_type = (CXt_NULL | CXp_SU_UPLEVEL_NULLED);
  }
@@ -2457,7 +2457,7 @@ static I32 su_context_real2logical(pTHX_ I32 cxix) {
   if (cx->cx_type == (CXt_NULL | CXp_SU_UPLEVEL_NULLED))
    gaps++;
  }
- XSH_D(su_debug_log("su_context_real2logical: %d => %d\n", cxix, cxix - gaps));
+ XSH_D(xsh_debug_log("su_context_real2logical: %d => %d\n", cxix, cxix - gaps));
  return cxix - gaps;
 }
 
@@ -2477,7 +2477,7 @@ static I32 su_context_logical2real(pTHX_ I32 cxix) {
   if (seen >= cxix)
    break;
  }
- XSH_D(su_debug_log("su_context_logical2real: %d => %d\n", cxix, i));
+ XSH_D(xsh_debug_log("su_context_logical2real: %d => %d\n", cxix, i));
  if (i > cxstack_ix)
   i = cxstack_ix;
  return i;
