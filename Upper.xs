@@ -1396,8 +1396,6 @@ static void su_yield(pTHX_ void *ud_) {
  U8      flags = 0;
  OP     *next;
 
- PERL_UNUSED_VAR(ud_);
-
  cx = cxstack + cxix;
  switch (CxTYPE(cx)) {
   case CXt_BLOCK: {
