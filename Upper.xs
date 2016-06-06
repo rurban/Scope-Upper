@@ -1089,7 +1089,6 @@ static void su_pop(pTHX_ void *ud);
 
 static void su_ss_push_destructor(pTHX_ void *ud, I32 depth, bool first) {
  su_ud_origin_elem *origin = SU_UD_ORIGIN(ud);
- I32 pad;
 
  assert(first || origin[depth+1].orig_ix == PL_savestack_ix);
  su_ss_push_padding(aTHX_ ud,
@@ -1166,7 +1165,7 @@ static void su_pop(pTHX_ void *ud) {
 
 static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 #define su_init(U, C, S) su_init(aTHX_ (U), (C), (S))
- I32 i, depth, base;
+ I32 i, depth;
  su_ud_origin_elem *origin;
  I32 cur_cx_ix;
  I32 cur_scope_ix;
