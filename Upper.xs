@@ -911,10 +911,13 @@ static void su_localize(pTHX_ void *ud_) {
 #ifdef gv_fetchsv
   gv = gv_fetchsv(sv, GV_ADDMULTI, t);
 #else
-  STRLEN len;
-  const char *name = SvPV_const(sv, len);
-  gv = gv_fetchpvn_flags(name, len, GV_ADDMULTI, t);
+  {
+   STRLEN len;
+   const char *name = SvPV_const(sv, len);
+   gv = gv_fetchpvn_flags(name, len, GV_ADDMULTI, t);
+  }
 #endif
+
 #if SU_HAS_NEW_CXT
   CX_CUR()->blk_oldcop = old_cop;
 #endif
