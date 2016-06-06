@@ -858,6 +858,9 @@ You can find documentation for this module with the perldoc command.
 
 Inspired by Ricardo Signes.
 
+The reimplementation of a large part of this module for perl 5.24 was provided by David Mitchell.
+His work was sponsored by the Perl 5 Core Maintenance Grant from The Perl Foundation.
+
 Thanks to Shawn M. Moore for motivation.
 
 =head1 COPYRIGHT & LICENSE
