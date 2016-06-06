@@ -653,9 +653,9 @@ static void su_save_helem(pTHX_ HV *hv, SV *keysv, SV *val) {
   return;
  }
 
- if (preeminent)
+ if (preeminent) {
   save_helem(hv, keysv, svp);
- else {
+ } else {
   STRLEN keylen;
   const char * const key = SvPV_const(keysv, keylen);
   SAVEDELETE(hv, savepvn(key, keylen),
@@ -938,15 +938,17 @@ static void su_localize(pTHX_ void *ud_) {
    if (elem) {
     su_save_aelem(GvAV(gv), elem, val);
     return;
-   } else
+   } else {
     save_ary(gv);
+   }
    break;
   case SVt_PVHV:
    if (elem) {
     su_save_helem(GvHV(gv), elem, val);
     return;
-   } else
+   } else {
     save_hash(gv);
+   }
    break;
   case SVt_PVGV:
    save_gp(gv, 1); /* hide previous entry in symtab */
@@ -1269,9 +1271,9 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
 
 #endif
 
-  if (i == 0)
+  if (i == 0) {
    offset = size;
-  else {
+  } else {
    /* we have three constraints to satisfy:
     * 1) Each adjusted offset must be at least SU_SAVE_DESTRUCTOR_SIZE
     *    above its unadjusted boundary, so that there is space to inject a
