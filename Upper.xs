@@ -900,13 +900,12 @@ static void su_localize(pTHX_ void *ud_) {
  if (SvTYPE(sv) >= SVt_PVGV) {
   gv = (GV *) sv;
  } else {
-
 /* new perl context implementation frees savestack *before* restoring
  * PL_curcop. Temporarily restore it prematurely to make gv_fetch*
  * looks up unqualified var names in the caller's package */
 #if SU_HAS_NEW_CXT
   COP *old_cop = PL_curcop;
-  PL_curcop = CX_CUR()->blk_oldcop;
+  PL_curcop    = CX_CUR()->blk_oldcop;
 #endif
 
 #ifdef gv_fetchsv
@@ -917,7 +916,7 @@ static void su_localize(pTHX_ void *ud_) {
   gv = gv_fetchpvn_flags(name, len, GV_ADDMULTI, t);
 #endif
 #if SU_HAS_NEW_CXT
-  CX_CUR()->blk_oldcop = PL_curcop;
+  CX_CUR()->blk_oldcop = old_cop;
 #endif
  }
 
