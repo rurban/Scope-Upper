@@ -1076,6 +1076,7 @@ static const int su_cxt_enter_count[] = {
 /* push at least 'size' slots worth of padding onto the savestack */
 
 static void su_ss_push_padding(pTHX_ void *ud, I32 size) {
+#define su_ss_push_padding(U, S) su_ss_push_padding(aTHX_ (U), (S))
  if (size <= 0)
   return;
  if (size < SU_SAVE_ALLOC_SIZE + 1) /* minimum possible SAVEt_ALLOC */
@@ -1092,10 +1093,11 @@ static void su_pop(pTHX_ void *ud);
  * first indicates that this is the first push of a destructor */
 
 static void su_ss_push_destructor(pTHX_ void *ud, I32 depth, bool first) {
+#define su_ss_push_destructor(U, D, F) su_ss_push_destructor(aTHX_ (U), (D), (F))
  su_ud_origin_elem *origin = SU_UD_ORIGIN(ud);
 
  assert(first || origin[depth+1].orig_ix == PL_savestack_ix);
- su_ss_push_padding(aTHX_ ud,
+ su_ss_push_padding(ud,
     (origin[depth].orig_ix + origin[depth].offset) - PL_savestack_ix);
  XSH_D(su_debug_log(
         "%p:     push destructor at save_ix=%d depth=%d scope_ix=%d\n",
@@ -1133,7 +1135,7 @@ static void su_pop(pTHX_ void *ud) {
  SU_UD_DEPTH(ud) = depth;
 
  if (depth > 0) {
-  su_ss_push_destructor(aTHX_ ud, depth-1, 0);
+  su_ss_push_destructor(ud, depth-1, 0);
  } else {
   I32 offset = origin[0].offset; /* grab value before origin is freed */
   switch (SU_UD_TYPE(ud)) {
@@ -1157,7 +1159,7 @@ static void su_pop(pTHX_ void *ud) {
   if (PL_savestack_ix < base + offset) {
    I32 gap = (base + offset) - PL_savestack_ix;
    assert(gap >= SU_SAVE_ALLOC_SIZE + 1);
-   su_ss_push_padding(aTHX_ ud, gap);
+   su_ss_push_padding(ud, gap);
   }
   assert(PL_savestack_ix == base + offset);
  }
@@ -1322,7 +1324,7 @@ static void su_init(pTHX_ void *ud, I32 cxix, I32 size) {
  SU_UD_DEPTH(ud)  = depth;
  SU_UD_ORIGIN(ud) = origin;
 
- su_ss_push_destructor(aTHX_ ud, depth-1, 1);
+ su_ss_push_destructor(ud, depth-1, 1);
 }
 
 /* --- Unwind stack -------------------------------------------------------- */
@@ -2020,6 +2022,7 @@ static int su_uplevel_runops_hook_entersub(pTHX) {
 }
 
 static I32 su_uplevel_new(pTHX_ CV *callback, I32 cxix, I32 args) {
+#define su_uplevel_new(CB, CX, A) su_uplevel_new(aTHX_ (CB), (CX), (A))
  su_uplevel_ud *sud;
  U8 *saved_cxtypes;
  I32 i, ret;
@@ -2089,6 +2092,7 @@ static I32 su_uplevel_new(pTHX_ CV *callback, I32 cxix, I32 args) {
 #else
 
 static I32 su_uplevel_old(pTHX_ CV *callback, I32 cxix, I32 args) {
+#define su_uplevel_old(CB, CX, A) su_uplevel_old(aTHX_ (CB), (CX), (A))
  su_uplevel_ud *sud;
  const PERL_CONTEXT *cx = cxstack + cxix;
  PERL_SI *si;
@@ -3247,9 +3251,9 @@ PPCODE:
     }
     /* su_uplevel() takes care of extending the stack if needed. */
 #if SU_HAS_NEW_CXT
-    ret = su_uplevel_new(aTHX_ (CV *) code, cxix, args);
+    ret = su_uplevel_new((CV *) code, cxix, args);
 #else
-    ret = su_uplevel_old(aTHX_ (CV *) code, cxix, args);
+    ret = su_uplevel_old((CV *) code, cxix, args);
 #endif
     XSRETURN(ret);
    default:
