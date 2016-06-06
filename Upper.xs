@@ -1050,6 +1050,8 @@ static const char *su_block_type[] = {
 
 #define SU_CXNAME(C) SU_CX_TYPENAME(CxTYPE(C))
 
+#if XSH_DEBUG
+
 /* for debugging. These indicate how many ENTERs each context type
  * does before the PUSHBLOCK */
 
@@ -1068,6 +1070,8 @@ static const int su_cxt_enter_count[] = {
  0, 1, 1, 2, 0, 1, 1
 # endif
 };
+
+#endif /* XSH_DEBUG */
 
 /* push at least 'size' slots worth of padding onto the savestack */
 
