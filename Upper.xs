@@ -1058,7 +1058,11 @@ static const char *su_block_type[] = {
  * does before the PUSHBLOCK */
 
 static const int su_cxt_enter_count[] = {
-# if XSH_HAS_PERL(5, 23, 8)
+# if XSH_HAS_PERL(5, 24, 0) && defined(USE_CPERL)
+ /* NULL WHEN BLOCK GIVEN LOOP_ARY LOOP_LAZYSV
+  * LOOP_LAZYIV LOOP_LIST LOOP_PLAIN SUB FORMAT EVAL SUBST */
+  0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 /* only GIVEN does ENTER */
+# elif XSH_HAS_PERL(5, 23, 8)
   0 /* context pushes no longer do ENTERs */
 # elif XSH_HAS_PERL(5, 11, 0)
  /* NULL WHEN BLOCK GIVEN LOOP_FOR LOOP_PLAIN LOOP_LAZYSV
